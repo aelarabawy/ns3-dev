@@ -35,7 +35,7 @@ class FatTreeHelper : public Object
 {
 public:
     static TypeId GetTypeId (void);
-    FatTreeHelper();
+    FatTreeHelper();   
     virtual ~FatTreeHelper();
 
     //Create a Fat-tree Netowrk
@@ -46,8 +46,12 @@ public:
     NodeContainer& CoreNodes(void) {return m_core;}
     NodeContainer& AggrNodes(void)  {return m_aggr;}
     NodeContainer& EdgeNodes(void) {return m_edge;}
-    NodeContainer& HostNodes(void) {return m_host;}
-
+    NodeContainer& GetHosts (void) {return m_host;}
+    
+    //Accessor of Host IP Address and Node Name
+    Ipv4Address GetHostIpAddress (Ptr<Node> host);
+    string& GetHostNodeName(unsigned int podNum, unsigned int nodeNum, string& name);
+    
 private:
     // Parameters
     unsigned int  m_K;
@@ -73,7 +77,8 @@ private:
     string& GetEdgeNodeName(unsigned int podNum, unsigned int nodeNum, string &name);
     string& GetAggrNodeName(unsigned int podNum, unsigned int nodeNum, string &name);
     string& GetCoreNodeName(unsigned int nodeNum, string &name);    
-    string& GetHostNodeName(unsigned int podNum, unsigned int nodeNum, string &name);
+
+
 
     void SetDeviceNames  (NetDeviceContainer& devices,
                           NodeContainer& nodePair);

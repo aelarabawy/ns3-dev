@@ -367,5 +367,13 @@ string& FatTreeHelper::GetDevName (Ptr<Node> nodeFrom,
 
         return devName;
 }
+
+Ipv4Address FatTreeHelper::GetHostIpAddress (Ptr<Node> node) {
+	Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+	int32_t interface = ipv4->GetInterfaceForDevice(node->GetDevice(0));	
+	
+	return ipv4->GetAddress(interface, 0).GetLocal();
+}
+	
 }; //namespace ns3
 
