@@ -24,6 +24,9 @@
 #Build Directory
 build/
 
+#Scratch Directory
+scratch/
+
 #Statistics files
 *Stats.txt
 
