@@ -50,8 +50,12 @@ public:
     
     //Accessor of Host IP Address and Node Name
     Ipv4Address GetHostIpAddress (Ptr<Node> host);
+    Ipv4Address GetHostIpAddress (unsigned int podNum, unsigned int hostNum);
     string& GetHostNodeName(unsigned int podNum, unsigned int nodeNum, string& name);
     
+    Ipv4Address GetIpAddressForDevice (Ptr<NetDevice> dev);
+
+        
 private:
     // Parameters
     unsigned int  m_K;
@@ -73,6 +77,9 @@ private:
     Time  m_e2aDelay;
     Time  m_a2cDelay;
     
+    //Grouped Tracing
+    bool m_enableGroupedTracing;
+    
     //Private Functions
     string& GetEdgeNodeName(unsigned int podNum, unsigned int nodeNum, string &name);
     string& GetAggrNodeName(unsigned int podNum, unsigned int nodeNum, string &name);
@@ -85,7 +92,12 @@ private:
     
     string& GetDevName (Ptr<Node> nodeFrom,
                         Ptr<Node> nodeTo,
-                        string& devName); 
+                        string& devName);
+    
+    string& GetHostDevName (unsigned int podNum,
+ 						    unsigned int edgeNum,
+						    unsigned int hostNum,
+						    string& devName);
 }; //class FatTreeHelper
 
 }; //namespace ns3
