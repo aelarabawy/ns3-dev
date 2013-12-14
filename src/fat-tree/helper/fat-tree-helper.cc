@@ -115,9 +115,21 @@ TypeId FatTreeHelper::GetTypeId (void) {
 }
 
 /*Default Constructor*/
-FatTreeHelper::FatTreeHelper() {
+FatTreeHelper::FatTreeHelper():
+	//Size of network
+	m_K(4),
+
+    //Data Rates of links between the layers 
+	m_h2eRate(DataRate("100Mbps")),
+	m_e2aRate(DataRate("100Mbps")),
+	m_a2cRate(DataRate("100Mbps")),
+
+	//Delay of links between the layers
+	m_h2eDelay(Time(0)),
+	m_e2aDelay(Time(0)),
+	m_a2cDelay(Time(0))
+{
 	NS_LOG_FUNCTION(this);
-    //DoNothing
 }// Default Constructor
 
 FatTreeHelper::~FatTreeHelper() {
@@ -162,6 +174,10 @@ void FatTreeHelper::Create(void) {
         //Aggregate Switches
         for (unsigned int aggrNum = 0; aggrNum < perPodAggrCount; ++aggrNum) {
             //Name exampe aggr_7_4
+        	NS_LOG_LOGIC ("pod:aggr (" << podNum << ":" << aggrNum << ") " 
+         			      << "Assigning Name: " << GetAggrNodeName(podNum, aggrNum, nodeName) 
+         			      << " For node with index " << nodeIndex << endl);
+        	
             Names::Add(GetAggrNodeName(podNum, aggrNum, nodeName) , m_node.Get(nodeIndex));
             m_aggr.Add(m_node.Get(nodeIndex++));
         }
@@ -169,7 +185,10 @@ void FatTreeHelper::Create(void) {
         //Edge Switches
         for (unsigned int edgeNum = 0; edgeNum < perPodEdgeCount; ++edgeNum) {
             //Name exampe edge_7_4
-
+        	NS_LOG_LOGIC ("pod:edge (" << podNum << ":" << edgeNum << ") " 
+         			      << "Assigning Name: " << GetEdgeNodeName(podNum, edgeNum, nodeName) 
+         			      << " For node with index " << nodeIndex << endl);
+        	
             Names::Add(GetEdgeNodeName(podNum, edgeNum, nodeName) , m_node.Get(nodeIndex));
             m_edge.Add(m_node.Get(nodeIndex++));
         }
@@ -177,6 +196,10 @@ void FatTreeHelper::Create(void) {
         //Host Nodes
         for (unsigned int hostNum = 0; hostNum < perPodHostCount; ++hostNum) {
             //Name exampe host_7_12
+        	NS_LOG_LOGIC ("pod:host (" << podNum << ":" << hostNum << ") " 
+         			      << "Assigning Name: " << GetHostNodeName(podNum, hostNum, nodeName) 
+         			      << " For node with index " << nodeIndex << endl);
+
             Names::Add(GetHostNodeName(podNum, hostNum, nodeName) , m_node.Get(nodeIndex));
             m_host.Add(m_node.Get(nodeIndex++));
         }
@@ -186,6 +209,10 @@ void FatTreeHelper::Create(void) {
     for (unsigned int coreNum = 0; coreNum < totalCoreCount; ++coreNum)
     {
         //Name exampe core_7_4
+    	NS_LOG_LOGIC ("core (" << coreNum << ") " 
+     			      << "Assigning Name: " << GetCoreNodeName(coreNum, nodeName) 
+     			      << " For node with index " << nodeIndex << endl);
+
         Names::Add(GetCoreNodeName(coreNum, nodeName) , m_node.Get(nodeIndex));
         m_core.Add(m_node.Get(nodeIndex++));
     }
@@ -198,8 +225,6 @@ void FatTreeHelper::Create(void) {
     }
     
     
-    //Create Net Devices and assign IP addresses   
-    NS_LOG_LOGIC ("Creating connections and set-up addresses.");
     
     /*
      * Note:
@@ -207,13 +232,17 @@ void FatTreeHelper::Create(void) {
      * later I will switch to more suitable type of devices, maybe csma, or 802.1qbb devices
      */
 
-    //Install stack in all nodes 
+    //Install stack in all nodes
+    //Create Net Devices and assign IP addresses   
+    NS_LOG_LOGIC ("Installing TCP/IP stack in all nodes....");
+
     InternetStackHelper stack;
     stack .Install (m_node);
 
+    //Create Net Devices and assign IP addresses   
+    NS_LOG_LOGIC ("Creating connections and set-up addresses....");
+
     //Preparing Helpers that will be used for different loops
-
-
     PointToPointHelper point2Point;
     
     Ipv4AddressHelper address;
@@ -222,18 +251,22 @@ void FatTreeHelper::Create(void) {
     string devName;
     
     //Connecting Hosts to Edge Switches
+    point2Point.SetDeviceAttribute ("DataRate", DataRateValue(m_h2eRate));
+    point2Point.SetChannelAttribute("Delay", TimeValue(m_h2eDelay));
+
     for (unsigned int podNum = 0; podNum < podCount; ++podNum) {
         for (unsigned int edgeNum =0; edgeNum < perPodEdgeCount; ++edgeNum) {
             for (unsigned int portNum = 0; portNum < perDirectionPortCount; ++portNum) {
-
-                point2Point.SetDeviceAttribute ("DataRate", DataRateValue(m_h2eRate));
-                point2Point.SetChannelAttribute("Delay", TimeValue(m_h2eDelay));
                 
                 NetDeviceContainer devices;
-                            
                 NodeContainer nodePair;
+
+                NS_LOG_LOGIC("Adding the Edge Switch " << GetEdgeNodeName(podNum, edgeNum, nodeName) << " to the nodePair" << endl);
                 nodePair.Add(GetEdgeNodeName(podNum, edgeNum, nodeName));
+
+                NS_LOG_LOGIC("Adding the Host Node " << GetHostNodeName(podNum, portNum, nodeName) << " to the nodePair" << endl);                
                 nodePair.Add(GetHostNodeName(podNum, portNum, nodeName));
+
                 devices = point2Point.Install (nodePair);
                 
                 //Name the associated devices
@@ -243,119 +276,135 @@ void FatTreeHelper::Create(void) {
                 //Note that the pod number is repeated in each node
 
                 SetDeviceNames (devices, nodePair);
-                Names::Add(GetDevName(nodePair.Get(0),
-                                      nodePair.Get(1),
-                                      devName),
-                           devices.Get(0));
                 
-                Names::Add(GetDevName(nodePair.Get(1),
-                                      nodePair.Get(0),
-                                      devName),
-                           devices.Get(1));
-
-                
+                NS_LOG_LOGIC("Assigning IP Addresses for this device pair");
                 Ipv4InterfaceContainer interfaces = address.Assign (devices);               
             }
         }
     }
     
     //Connecting Edge Switches to Aggregate Switches
+    point2Point.SetDeviceAttribute ("DataRate", DataRateValue(m_e2aRate));
+    point2Point.SetChannelAttribute("Delay", TimeValue(m_e2aDelay));
+
     for (unsigned int podNum = 0; podNum < podCount; ++podNum) {
         for (unsigned int aggrNum = 0; aggrNum < perPodAggrCount; ++aggrNum) {
             for (unsigned int edgeNum = 0; edgeNum < perPodEdgeCount; ++edgeNum) {
-
-                point2Point.SetDeviceAttribute ("DataRate", DataRateValue(m_e2aRate));
-                point2Point.SetChannelAttribute("Delay", TimeValue(m_e2aDelay));
                 
                 NetDeviceContainer devices;
-                            
                 NodeContainer nodePair;
+                
+                NS_LOG_LOGIC("Adding the Aggr Switch " << GetAggrNodeName(podNum, aggrNum, nodeName) << " to the nodePair" << endl);
                 nodePair.Add(GetAggrNodeName(podNum, aggrNum, nodeName));
+
+                NS_LOG_LOGIC("Adding the Edge Switch " << GetEdgeNodeName(podNum, edgeNum, nodeName) << " to the nodePair" << endl);
                 nodePair.Add(GetEdgeNodeName(podNum, edgeNum, nodeName));
+
                 devices = point2Point.Install (nodePair);
-                
-                
+
+                //Name the associated devices
+                SetDeviceNames (devices, nodePair);
+
+                NS_LOG_LOGIC("Assigning IP Addresses for this device pair");
                 Ipv4InterfaceContainer interfaces = address.Assign (devices);                               
             }
         }
     }
     
     //Connecting Core Switches to Aggregate Switches
+    point2Point.SetDeviceAttribute ("DataRate", DataRateValue(m_a2cRate));
+    point2Point.SetChannelAttribute("Delay", TimeValue(m_a2cDelay));
+    
     for (unsigned int coreNum = 0; coreNum < totalCoreCount; ++coreNum) {
         for (unsigned int podNum = 0; podNum < podCount; ++podNum) {
             for (unsigned int aggrNum = 0; aggrNum < perPodAggrCount; ++aggrNum) {
-
-                point2Point.SetDeviceAttribute ("DataRate", DataRateValue(m_a2cRate));
-                point2Point.SetChannelAttribute("Delay", TimeValue(m_a2cDelay));
                 
                 NetDeviceContainer devices;
-                            
                 NodeContainer nodePair;
+                
+                NS_LOG_LOGIC("Adding the Core Switch " << GetEdgeNodeName(podNum, coreNum, nodeName) << " to the nodePair" << endl);
                 nodePair.Add(GetCoreNodeName(coreNum, nodeName));
+                
+                NS_LOG_LOGIC("Adding the Aggr Switch " << GetAggrNodeName(podNum, aggrNum, nodeName) << " to the nodePair" << endl);
                 nodePair.Add(GetAggrNodeName(podNum, aggrNum, nodeName));
+                
                 devices = point2Point.Install (nodePair);
-                
-                
+
+                //Name the associated devices
+                SetDeviceNames (devices, nodePair);
+
+                NS_LOG_LOGIC("Assigning IP Addresses for this device pair");
                 Ipv4InterfaceContainer interfaces = address.Assign (devices);                               
             }
         }
     }
 
-  //Build Routing tables in all nodes  
+  //Build Routing tables in all nodes
+  NS_LOG_LOGIC("Build Routing Table in all Nodes");
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   //Enable PCAP tracing on all devices
+  NS_LOG_LOGIC("Enable PCAP Tracing on all devices");
   point2Point.EnablePcapAll("fat-tree-");
 
   //Enable Ascii tracing on all Devices
+  NS_LOG_LOGIC("Enable ASCII Tracing on all devices");
   point2Point.EnableAsciiAll("fat-tree-");
     
 }// Create()
 
+//This function will be moved later outside this file. I made sure it is not a class member
+template<typename T>
+string numberToString (T number) {
+	ostringstream ss;
+	ss << number;
+	return ss.str();
+}
 
 //Private functions that construct the names for the nodes
 string& FatTreeHelper::GetEdgeNodeName(unsigned int podNum, unsigned int nodeNum, string &nodeName) {
     nodeName = "edge_";
-    nodeName += podNum + "_" + nodeNum;
+    nodeName += numberToString(podNum) + "_" + numberToString(nodeNum);
     
     return nodeName;
 }
 
 string& FatTreeHelper::GetAggrNodeName(unsigned int podNum, unsigned int nodeNum, string &nodeName) {
     nodeName = "aggr_";
-    nodeName += podNum + "_" + nodeNum;
+    nodeName += numberToString(podNum) + "_" + numberToString(nodeNum);
     
     return nodeName;
 }
 
 string& FatTreeHelper::GetCoreNodeName(unsigned int nodeNum, string& nodeName) {
     nodeName = "core_";
-    nodeName += nodeNum;
+    nodeName += numberToString(nodeNum);
     
     return nodeName;
 }
 
 string& FatTreeHelper::GetHostNodeName(unsigned int podNum, unsigned int nodeNum, string &nodeName) {
     nodeName = "host_";
-    nodeName += podNum + "_" + nodeNum;
+    nodeName += numberToString(podNum) + "_" + numberToString(nodeNum);
     
     return nodeName;
 }
 
 void FatTreeHelper::SetDeviceNames (NetDeviceContainer& devices,
-                                NodeContainer& nodePair) {
+                                    NodeContainer& nodePair) {
     string devName;
-    
+                   
+    NS_LOG_LOGIC("Adding a name to the Dev: " << GetDevName(nodePair.Get(0), nodePair.Get(1), devName) << endl);       
     Names::Add(GetDevName(nodePair.Get(0),
                           nodePair.Get(1),
                           devName),
                           devices.Get(0));
 
+    NS_LOG_LOGIC("Adding a name to the Dev: " << GetDevName(nodePair.Get(1), nodePair.Get(0), devName) << endl);
     Names::Add(GetDevName(nodePair.Get(1),
                           nodePair.Get(0),
                           devName),
-                          devices.Get(1));
-    
+                          devices.Get(1));    
 }
 
 string& FatTreeHelper::GetDevName (Ptr<Node> nodeFrom,
@@ -363,6 +412,7 @@ string& FatTreeHelper::GetDevName (Ptr<Node> nodeFrom,
                                    string& devName) {
         devName = "dev_";
         devName += Names::FindName(nodeFrom);
+        devName += "_";
         devName += Names::FindName(nodeTo);
 
         return devName;
