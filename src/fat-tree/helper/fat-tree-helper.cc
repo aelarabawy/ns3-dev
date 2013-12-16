@@ -20,7 +20,7 @@
  /*
   * Author: Ahmed ElArabawy <aelarabawy.git@lasilka.com>
   * 
- */
+  */
 
 
 #include <iostream>
@@ -46,7 +46,6 @@ FatTreeHelper::FatTreeHelper() {
 
 FatTreeHelper::~FatTreeHelper() {
     NS_LOG_FUNCTION(this);
-    //Do Nothing
 }// Desturctor
 
 void FatTreeHelper::setNetworkAttribute(string name, const AttributeValue &value) {
@@ -71,12 +70,11 @@ Ptr<FatTreeNetwork> FatTreeHelper::Install(const string networkName) {
 
 //Ascii Trace Helper function
 void FatTreeHelper::EnableAsciiInternal (Ptr<OutputStreamWrapper> stream, string prefix, Ptr<NetDevice> nd, bool explicitFilename) {
-
-    //As a sanity check
     //Make sure we are receiving a P2P device (the one we are using in fat-tree-networks)
+    //Otherwise, ignore this device
     Ptr<PointToPointNetDevice> device = nd->GetObject<PointToPointNetDevice> ();
     if (device == 0) {
-          NS_LOG_INFO ("PointToPointHelper::EnableAsciiInternal(): Device " << device << 
+          NS_LOG_INFO ("PointToPointHelper::EnableAsciiInternal(): Device " << device << "  Name: " << Names::FindName(nd) <<
                        " not of type ns3::PointToPointNetDevice");
           return;
     }
@@ -131,41 +129,42 @@ void FatTreeHelper::EnableAsciiInternal (Ptr<OutputStreamWrapper> stream, string
         return;
     }
     
-    //
-    // If we are provided an OutputStreamWrapper, we are expected to use it, and
-    // to providd a context.  We are free to come up with our own context if we
-    // want, and use the AsciiTraceHelper Hook*WithContext functions, but for 
-    // compatibility and simplicity, we just use Config::Connect and let it deal
-    // with the context.
-    //
-    // Note that we are going to use the default trace sinks provided by the 
-    // ascii trace helper.  There is actually no AsciiTraceHelper in sight here,
-    // but the default trace sinks are actually publicly available static 
-    // functions that are always there waiting for just such a case.
-    //
-    uint32_t nodeid = nd->GetNode ()->GetId ();
+    /*
+     * The following code registers sink functions with the trace sources
+     * selection of the sink function defines the format of the trace output
+     * 
+     * NS3 Provides a set of default functions:
+     *     - AsciiTraceHelper::DefaultReceiveSinkWithContext() : for MacRx
+     *     - AsciiTraceHelper::DefaultEnqueueSinkWithContext() : for Enqueue
+     *     - AsciiTraceHelper::DefaultDequeueSinkWithContext() : for Dequeue
+     *     - AsciiTraceHelper::DefaultDropSinkWithContext()    : for Drop and PhyRxDrop
+     *     
+     * This code is also providing an alternative functions to change the format of the file as desired
+     */
+    
+
     uint32_t deviceid = nd->GetIfIndex ();
 
     ostringstream oss;
     
-    oss << "/NodeList/" << nd->GetNode ()->GetId () << "/DeviceList/" << deviceid << "/$ns3::PointToPointNetDevice/MacRx";
-    Config::Connect (oss.str (), MakeBoundCallback (&AsciiTraceHelper::DefaultReceiveSinkWithContext, stream));
+    oss << Names::FindName(device) << "/DeviceList/" << deviceid << "/$ns3::PointToPointNetDevice/MacRx";
+    Config::Connect (oss.str (), MakeBoundCallback (&ReceivePacketSink, stream));
     
     oss.str ("");
-    oss << "/NodeList/" << nodeid << "/DeviceList/" << deviceid << "/$ns3::PointToPointNetDevice/TxQueue/Enqueue";
-    Config::Connect (oss.str (), MakeBoundCallback (&AsciiTraceHelper::DefaultEnqueueSinkWithContext, stream));
+    oss << Names::FindName(device) << "/$ns3::PointToPointNetDevice/TxQueue/Enqueue";
+    Config::Connect (oss.str (), MakeBoundCallback (&EnqueuePacketSink, stream));
     
     oss.str ("");
-    oss << "/NodeList/" << nodeid << "/DeviceList/" << deviceid << "/$ns3::PointToPointNetDevice/TxQueue/Dequeue";
-    Config::Connect (oss.str (), MakeBoundCallback (&AsciiTraceHelper::DefaultDequeueSinkWithContext, stream));
+    oss << Names::FindName(device) << "/$ns3::PointToPointNetDevice/TxQueue/Dequeue";
+    Config::Connect (oss.str (), MakeBoundCallback (&DequeuePacketSink, stream));
     
     oss.str ("");
-    oss << "/NodeList/" << nodeid << "/DeviceList/" << deviceid << "/$ns3::PointToPointNetDevice/TxQueue/Drop";
-    Config::Connect (oss.str (), MakeBoundCallback (&AsciiTraceHelper::DefaultDropSinkWithContext, stream));
+    oss << Names::FindName(device) << "/$ns3::PointToPointNetDevice/TxQueue/Drop";
+    Config::Connect (oss.str (), MakeBoundCallback (&DropPacketSink, stream));
     
     oss.str ("");
-    oss << "/NodeList/" << nodeid << "/DeviceList/" << deviceid << "/$ns3::PointToPointNetDevice/PhyRxDrop";
-    Config::Connect (oss.str (), MakeBoundCallback (&AsciiTraceHelper::DefaultDropSinkWithContext, stream));    
+    oss << Names::FindName(device) << "/$ns3::PointToPointNetDevice/PhyRxDrop";
+    Config::Connect (oss.str (), MakeBoundCallback (&DropPacketSink, stream));    
 }
 
 void FatTreeHelper::EnablePcapInternal (std::string prefix, Ptr<NetDevice> nd, bool promiscuous, bool explicitFilename) {
@@ -175,8 +174,8 @@ void FatTreeHelper::EnablePcapInternal (std::string prefix, Ptr<NetDevice> nd, b
     Ptr<PointToPointNetDevice> device = nd->GetObject<PointToPointNetDevice> ();
     if (device == 0) {
         NS_LOG_INFO ("PointToPointHelper::EnablePcapInternal(): Device " << device << 
-                           " not of type ns3::PointToPointNetDevice");
-              return;
+                     " not of type ns3::PointToPointNetDevice");
+        return;
     }
 
     PcapHelper pcapHelper;
@@ -191,6 +190,29 @@ void FatTreeHelper::EnablePcapInternal (std::string prefix, Ptr<NetDevice> nd, b
 
     Ptr<PcapFileWrapper> file = pcapHelper.CreateFile (filename, std::ios::out, PcapHelper::DLT_PPP);
     pcapHelper.HookDefaultSink<PointToPointNetDevice> (device, "PromiscSniffer", file);
+}
+
+
+//Customized Trace Sinks
+
+// This function replaces AsciiTraceHelper::DefaultReceiveSinkWithContext()
+void FatTreeHelper::ReceivePacketSink(Ptr<OutputStreamWrapper> stream, string context, Ptr<const Packet> packet) {
+    *stream->GetStream() << "r " << Simulator::Now().GetSeconds() << " " << context << " " << *packet << endl;
+}
+
+// This function replaces AsciiTraceHelper::DefaultEnqueueSinkWithContext()
+void FatTreeHelper::EnqueuePacketSink(Ptr<OutputStreamWrapper> stream, string context, Ptr<const Packet> packet) {
+    *stream->GetStream() << "+ " << Simulator::Now().GetSeconds() << " " << context << " " << *packet << endl;
+}
+
+// This function replaces AsciiTraceHelper::DefaultDequeueSinkWithContext()
+void FatTreeHelper::DequeuePacketSink(Ptr<OutputStreamWrapper> stream, string context, Ptr<const Packet> packet) {
+    *stream->GetStream() << "- " << Simulator::Now().GetSeconds() << " " << context << " " << *packet << endl;
+}
+
+// This function replaces AsciiTraceHelper::DefaultDropSinkWithContext()
+void FatTreeHelper::DropPacketSink(Ptr<OutputStreamWrapper> stream, string context, Ptr<const Packet> packet) {
+    *stream->GetStream() << "d " << Simulator::Now().GetSeconds() << " " << context << " " << *packet << endl;
 }
    
 }; //namespace ns3

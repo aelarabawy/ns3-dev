@@ -20,7 +20,7 @@
  /*
   * Author: Ahmed ElArabawy <aelarabawy.git@lasilka.com>
   * 
- */
+  */
 
 #ifndef FAT_TREE_HELPER_H
 #define FAT_TREE_HELPER_H
@@ -31,7 +31,6 @@ using namespace std;
 #include "ns3/network-module.h"
 
 #include "ns3/fat-tree.h"
-
 
 namespace ns3 {
 
@@ -46,7 +45,7 @@ public:
 
     //Create a Fat-tree Netowrk
     Ptr<FatTreeNetwork> Install(const string networkName);
-        
+
 private:
     //Private Parameters
     ObjectFactory m_fatTreeNetworkFactory;
@@ -57,6 +56,13 @@ private:
 
     //Overloading the pure virtual function of PcapHelperForDevice
     virtual void EnablePcapInternal (std::string prefix, Ptr<NetDevice> nd, bool promiscuous, bool explicitFilename);
+    
+    //Customized Trace Sinks
+    //These functions have to be static
+    static void ReceivePacketSink(Ptr<OutputStreamWrapper> stream, string context, Ptr<const Packet> packet);
+    static void EnqueuePacketSink(Ptr<OutputStreamWrapper> stream, string context, Ptr<const Packet> packet);
+    static void DequeuePacketSink(Ptr<OutputStreamWrapper> stream, string context, Ptr<const Packet> packet);
+    static void DropPacketSink   (Ptr<OutputStreamWrapper> stream, string context, Ptr<const Packet> packet);
 
 }; //class FatTreeHelper
 
