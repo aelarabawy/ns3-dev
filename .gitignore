@@ -15,6 +15,9 @@
 #PCAP files
 *.pcap
 
+#Ascii Trace Files
+*.tr
+
 #Compiled Python Files
 *.pyc
  
