@@ -78,9 +78,6 @@ private:
     Time  m_e2aDelay;
     Time  m_a2cDelay;
 
-    //Grouped Tracing
-    bool m_enableGroupedTracing;
-
     //Private Functions
 
     //Accessor functions for Different Node Containers

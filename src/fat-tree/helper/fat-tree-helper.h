@@ -35,7 +35,7 @@ using namespace std;
 
 namespace ns3 {
 
-class FatTreeHelper
+class FatTreeHelper : public AsciiTraceHelperForDevice, public PcapHelperForDevice
 {
 public:
     FatTreeHelper();
@@ -52,6 +52,11 @@ private:
     ObjectFactory m_fatTreeNetworkFactory;
     
     //Private Functions
+    //Overloading the pure virtual function of AsciiTraceHelperForDevice
+    virtual void EnableAsciiInternal (Ptr<OutputStreamWrapper> stream, std::string prefix, Ptr<NetDevice> nd, bool explicitFilename);
+
+    //Overloading the pure virtual function of PcapHelperForDevice
+    virtual void EnablePcapInternal (std::string prefix, Ptr<NetDevice> nd, bool promiscuous, bool explicitFilename);
 
 }; //class FatTreeHelper
 

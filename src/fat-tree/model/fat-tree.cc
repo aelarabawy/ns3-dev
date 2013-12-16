@@ -80,7 +80,7 @@ TypeId FatTreeNetwork::GetTypeId (void) {
                       StringValue("UnNamed"),
                       MakeStringAccessor(&FatTreeNetwork::m_networkName),
                       MakeStringChecker ())
-
+       
         .AddAttribute ("Core2AggrDelay",
                        "The delay on links between the core switches and the Aggregate switches",
                        TimeValue(Seconds(0)),
@@ -137,9 +137,8 @@ FatTreeNetwork::FatTreeNetwork():
     //Delay of links between the layers
     m_h2eDelay(Time(0)),
     m_e2aDelay(Time(0)),
-    m_a2cDelay(Time(0)),
-    m_enableGroupedTracing(false)
-{
+    m_a2cDelay(Time(0))  {
+    
     NS_LOG_FUNCTION(this);
 }// Default Constructor
 
@@ -244,14 +243,12 @@ void FatTreeNetwork::Build(void) {
                       << "While #Nodes added = " << "nodeIndex" << endl);
     }
     
-    
-    
+       
     /*
      * Note:
      * I will start with basic point2point devices, 
      * later I will switch to more suitable type of devices, maybe csma, or 802.1qbb devices
      */
-
 
     //Create Net Devices and assign IP addresses   
     NS_LOG_LOGIC ("Creating connections and devices....");
@@ -289,13 +286,6 @@ void FatTreeNetwork::Build(void) {
                 //Note that the pod number is repeated in each node
 
                 SetDeviceNames (devices, nodePair);
-                
-                if (m_enableGroupedTracing) {
-                    point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(0), true);
-                    point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(1), true);
-                    point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(0), false, true);
-                    point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(1), false, true);
-                }
             }
         }
     }
@@ -322,13 +312,6 @@ void FatTreeNetwork::Build(void) {
                 
                 //Name the associated devices
                 SetDeviceNames (devices, nodePair);
-
-                if (m_enableGroupedTracing) {
-                    point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(0), true);
-                    point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(1), true);
-                    point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(0), false, true);
-                    point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(1), false, true);
-                }
             }
         }
     }
@@ -356,13 +339,6 @@ void FatTreeNetwork::Build(void) {
             
             //Name the associated devices
             SetDeviceNames (devices, nodePair);
-
-            if (m_enableGroupedTracing) {
-                point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(0), true);
-                point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(1), true);
-                point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(0), false, true);
-                point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(1), false, true);
-            }
         }
     }
 
@@ -382,17 +358,6 @@ void FatTreeNetwork::Build(void) {
     //Build Routing tables in all nodes
     NS_LOG_LOGIC("Build Routing Table in all Nodes");
     Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
-
-    if (!m_enableGroupedTracing) {
-
-        //Enable PCAP tracing on all devices
-        NS_LOG_LOGIC("Enable PCAP Tracing on all devices");
-        point2Point.EnablePcapAll("fat-tree-");   
-
-        //Enable Ascii tracing on all Devices
-        NS_LOG_LOGIC("Enable ASCII Tracing on all devices");
-        point2Point.EnableAsciiAll("fat-tree-");
-    }
     
 #if 1
     //Dumping Device Info for debugging purpose

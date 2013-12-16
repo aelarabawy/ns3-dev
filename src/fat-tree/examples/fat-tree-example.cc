@@ -45,19 +45,28 @@ main (int argc, char *argv[])
   FatTreeHelper fatTreeHelper;
   Ptr<FatTreeNetwork> benchMarkNetwork = fatTreeHelper.Install("BenchMark");
 
+  //Enable tracing
+  NS_LOG_LOGIC("Enable ASCII Tracing on all devices");
+  AsciiTraceHelper asciiTraceHelper;
+  Ptr<OutputStreamWrapper> stream = asciiTraceHelper.CreateFileStream ("traceFile.tr");
+  fatTreeHelper.EnableAsciiAll(stream);
+  
+  NS_LOG_LOGIC("Enable PCAP Tracing on all devices");
+  fatTreeHelper.EnablePcapAll("pcapTraceFile");  
+
   //Get the hosts for both client and server
   string nodeName;
   Ptr<Node> clientHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(0,2,nodeName));
   if (!clientHost) {
-	  NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(0,2,nodeName));
+      NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(0,2,nodeName));
   }
   
   Ptr<Node> serverHost = Names::Find <Node> (benchMarkNetwork->GetHostNodeName(3,2, nodeName));
   if (!clientHost) {
-	  NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(3,2,nodeName));
+      NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(3,2,nodeName));
   }
   
-  
+
   //Install the Server Application in the serverHost
   UdpEchoServerHelper echoServer (9);
 
