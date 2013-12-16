@@ -19,7 +19,9 @@
  
  /*
   * Author: Ahmed ElArabawy <aelarabawy.git@lasilka.com>
+  * 
  */
+
 #ifndef FAT_TREE_HELPER_H
 #define FAT_TREE_HELPER_H
 
@@ -28,76 +30,29 @@ using namespace std;
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
 
+#include "ns3/fat-tree.h"
+
 
 namespace ns3 {
 
-class FatTreeHelper : public Object
+class FatTreeHelper
 {
 public:
-    static TypeId GetTypeId (void);
-    FatTreeHelper();   
+    FatTreeHelper();
     virtual ~FatTreeHelper();
 
+    //Set an attribute for the FatTreeNetwork
+    void setNetworkAttribute(string name, const AttributeValue &value);
+
     //Create a Fat-tree Netowrk
-    void Create(void);
-
-    //Accessor functions for Different Node Containers
-    NodeContainer& AllNodes(void)  {return m_node;}
-    NodeContainer& CoreNodes(void) {return m_core;}
-    NodeContainer& AggrNodes(void)  {return m_aggr;}
-    NodeContainer& EdgeNodes(void) {return m_edge;}
-    NodeContainer& GetHosts (void) {return m_host;}
-    
-    //Accessor of Host IP Address and Node Name
-    Ipv4Address GetHostIpAddress (Ptr<Node> host);
-    Ipv4Address GetHostIpAddress (unsigned int podNum, unsigned int hostNum);
-    string& GetHostNodeName(unsigned int podNum, unsigned int nodeNum, string& name);
-    
-    Ipv4Address GetIpAddressForDevice (Ptr<NetDevice> dev);
-
+    Ptr<FatTreeNetwork> Install(const string networkName);
         
 private:
-    // Parameters
-    unsigned int  m_K;
-
-    //Node Containers
-    NodeContainer  m_node;  //All Nodes
-    NodeContainer  m_core;  //Core Switches
-    NodeContainer  m_aggr;  //Aggregate Switches
-    NodeContainer  m_edge;  //Edge Switches
-    NodeContainer  m_host;  //Host Nodes
-
-    //Data Rates of links between the layers 
-    DataRate  m_h2eRate;
-    DataRate  m_e2aRate;
-    DataRate  m_a2cRate;
-
-    //Delay of links between the layers
-    Time  m_h2eDelay;
-    Time  m_e2aDelay;
-    Time  m_a2cDelay;
-    
-    //Grouped Tracing
-    bool m_enableGroupedTracing;
+    //Private Parameters
+    ObjectFactory m_fatTreeNetworkFactory;
     
     //Private Functions
-    string& GetEdgeNodeName(unsigned int podNum, unsigned int nodeNum, string &name);
-    string& GetAggrNodeName(unsigned int podNum, unsigned int nodeNum, string &name);
-    string& GetCoreNodeName(unsigned int nodeNum, string &name);    
 
-
-
-    void SetDeviceNames  (NetDeviceContainer& devices,
-                          NodeContainer& nodePair);
-    
-    string& GetDevName (Ptr<Node> nodeFrom,
-                        Ptr<Node> nodeTo,
-                        string& devName);
-    
-    string& GetHostDevName (unsigned int podNum,
- 						    unsigned int edgeNum,
-						    unsigned int hostNum,
-						    string& devName);
 }; //class FatTreeHelper
 
 }; //namespace ns3
