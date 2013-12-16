@@ -59,6 +59,7 @@ private:
     
     //Name
     string m_networkName;
+    string m_prefix;
 
     //Node Containers
     NodeContainer  m_allNodes;      //All Nodes

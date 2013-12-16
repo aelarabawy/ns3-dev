@@ -75,11 +75,11 @@ TypeId FatTreeNetwork::GetTypeId (void) {
                        MakeUintegerAccessor(&FatTreeNetwork::m_K),
                        MakeUintegerChecker<unsigned int> ())
 
-	   .AddAttribute ("Name",
-					  "The Name of the fat Tree Network, this name needs to be unique",
-					  StringValue("UnNamed"),
-					  MakeStringAccessor(&FatTreeNetwork::m_networkName),
-					  MakeStringChecker ())
+       .AddAttribute ("Name",
+                      "The Name of the fat Tree Network, this name needs to be unique",
+                      StringValue("UnNamed"),
+                      MakeStringAccessor(&FatTreeNetwork::m_networkName),
+                      MakeStringChecker ())
 
         .AddAttribute ("Core2AggrDelay",
                        "The delay on links between the core switches and the Aggregate switches",
@@ -122,32 +122,36 @@ TypeId FatTreeNetwork::GetTypeId (void) {
 
 /*Default Constructor*/
 FatTreeNetwork::FatTreeNetwork():
-	//Size of network
-	m_K(4),
+    //Size of network
+    m_K(4),
+
+    //Name and prefix
+    m_networkName ("unNamed"),
+    m_prefix ("Names/fatTreeNetwork/unNamed"),
 
     //Data Rates of links between the layers 
-	m_h2eRate(DataRate("100Mbps")),
-	m_e2aRate(DataRate("100Mbps")),
-	m_a2cRate(DataRate("100Mbps")),
+    m_h2eRate(DataRate("100Mbps")),
+    m_e2aRate(DataRate("100Mbps")),
+    m_a2cRate(DataRate("100Mbps")),
 
-	//Delay of links between the layers
-	m_h2eDelay(Time(0)),
-	m_e2aDelay(Time(0)),
-	m_a2cDelay(Time(0)),
-	m_enableGroupedTracing(false)
+    //Delay of links between the layers
+    m_h2eDelay(Time(0)),
+    m_e2aDelay(Time(0)),
+    m_a2cDelay(Time(0)),
+    m_enableGroupedTracing(false)
 {
-	NS_LOG_FUNCTION(this);
+    NS_LOG_FUNCTION(this);
 }// Default Constructor
 
 FatTreeNetwork::~FatTreeNetwork() {
-	NS_LOG_FUNCTION(this);
+    NS_LOG_FUNCTION(this);
     //Do Nothing
 }// Desturctor
 
 //Create a Fat-tree Netowrk
 void FatTreeNetwork::Build(void) {
-	NS_LOG_FUNCTION(this);
-	
+    NS_LOG_FUNCTION(this);
+    
     unsigned int podCount = m_K;
     unsigned int perDirectionPortCount = m_K/2;
     unsigned int perPodEdgeCount = m_K/2;
@@ -161,6 +165,9 @@ void FatTreeNetwork::Build(void) {
                                   totalAggrCount +
                                   totalEdgeCount +
                                   totalHostCount;
+
+    NS_LOG_LOGIC("Building Network : " << m_networkName);
+    NS_LOG_LOGIC("Names will have the Prefix: " << m_prefix);
 
     NS_LOG_LOGIC("Network contains:" << endl 
                   << "/t" << podCount << "pods" << endl
@@ -181,34 +188,34 @@ void FatTreeNetwork::Build(void) {
         //Aggregate Switches
         for (unsigned int aggrNum = 0; aggrNum < perPodAggrCount; ++aggrNum) {
 
-        	NS_LOG_LOGIC ("pod:aggr (" << podNum << ":" << aggrNum << ") " 
-         			      << "Assigning Name: " << GetAggrNodeName(podNum, aggrNum, nodeName) 
-         			      << " For node with index " << nodeIndex << endl);
-            Names::Add(GetAggrNodeName(podNum, aggrNum, nodeName) , m_allNodes.Get(nodeIndex));
+            NS_LOG_LOGIC ("pod:aggr (" << podNum << ":" << aggrNum << ") " 
+                          << "Assigning Name: " << GetAggrNodeName(podNum, aggrNum, nodeName) 
+                          << " For node with index " << nodeIndex << endl);
+            Names::Add(m_prefix, GetAggrNodeName(podNum, aggrNum, nodeName) , m_allNodes.Get(nodeIndex));
             m_aggrSwitches.Add(m_allNodes.Get(nodeIndex++));
         }
         
         //Edge Switches
         for (unsigned int edgeNum = 0; edgeNum < perPodEdgeCount; ++edgeNum) {
 
-        	//Name exampe edge_7_4
-        	NS_LOG_LOGIC ("pod:edge (" << podNum << ":" << edgeNum << ") " 
-         			      << "Assigning Name: " << GetEdgeNodeName(podNum, edgeNum, nodeName) 
-         			      << " For node with index " << nodeIndex << endl);
+            //Name exampe edge_7_4
+            NS_LOG_LOGIC ("pod:edge (" << podNum << ":" << edgeNum << ") " 
+                          << "Assigning Name: " << GetEdgeNodeName(podNum, edgeNum, nodeName) 
+                          << " For node with index " << nodeIndex << endl);
 
-            Names::Add(GetEdgeNodeName(podNum, edgeNum, nodeName) , m_allNodes.Get(nodeIndex));
+            Names::Add(m_prefix, GetEdgeNodeName(podNum, edgeNum, nodeName) , m_allNodes.Get(nodeIndex));
             m_edgeSwitches.Add(m_allNodes.Get(nodeIndex++));
         }
         
         //Host Nodes
         for (unsigned int hostNum = 0; hostNum < perPodHostCount; ++hostNum) {
 
-        	//Name exampe host_7_12
-        	NS_LOG_LOGIC ("pod:host (" << podNum << ":" << hostNum << ") " 
-         			      << "Assigning Name: " << GetHostNodeName(podNum, hostNum, nodeName) 
-         			      << " For node with index " << nodeIndex << endl);
+            //Name exampe host_7_12
+            NS_LOG_LOGIC ("pod:host (" << podNum << ":" << hostNum << ") " 
+                          << "Assigning Name: " << GetHostNodeName(podNum, hostNum, nodeName) 
+                          << " For node with index " << nodeIndex << endl);
 
-            Names::Add(GetHostNodeName(podNum, hostNum, nodeName) , m_allNodes.Get(nodeIndex));
+            Names::Add(m_prefix, GetHostNodeName(podNum, hostNum, nodeName) , m_allNodes.Get(nodeIndex));
             m_hosts.Add(m_allNodes.Get(nodeIndex++));
         }
     }
@@ -217,12 +224,12 @@ void FatTreeNetwork::Build(void) {
     for (unsigned int coreNum = 0; coreNum < totalCoreCount; ++coreNum)
     {
 
-    	//Name exampe core_7_4
-    	NS_LOG_LOGIC ("core (" << coreNum << ") " 
-     			      << "Assigning Name: " << GetCoreNodeName(coreNum, nodeName) 
-     			      << " For node with index " << nodeIndex << endl);
-    	
-        Names::Add(GetCoreNodeName(coreNum, nodeName) , m_allNodes.Get(nodeIndex));
+        //Name exampe core_7_4
+        NS_LOG_LOGIC ("core (" << coreNum << ") " 
+                      << "Assigning Name: " << GetCoreNodeName(coreNum, nodeName) 
+                      << " For node with index " << nodeIndex << endl);
+        
+        Names::Add(m_prefix, GetCoreNodeName(coreNum, nodeName) , m_allNodes.Get(nodeIndex));
         m_coreSwitches.Add(m_allNodes.Get(nodeIndex++));
     }
       
@@ -280,10 +287,10 @@ void FatTreeNetwork::Build(void) {
                 SetDeviceNames (devices, nodePair);
                 
                 if (m_enableGroupedTracing) {
-                	point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(0), true);
-                	point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(1), true);
-                	point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(0), false, true);
-                	point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(1), false, true);
+                    point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(0), true);
+                    point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(1), true);
+                    point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(0), false, true);
+                    point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(1), false, true);
                 }
             }
         }
@@ -313,10 +320,10 @@ void FatTreeNetwork::Build(void) {
                 SetDeviceNames (devices, nodePair);
 
                 if (m_enableGroupedTracing) {
-                	point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(0), true);
-                	point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(1), true);
-                	point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(0), false, true);
-                	point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(1), false, true);
+                    point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(0), true);
+                    point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(1), true);
+                    point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(0), false, true);
+                    point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(1), false, true);
                 }
             }
         }
@@ -329,29 +336,29 @@ void FatTreeNetwork::Build(void) {
     for (unsigned int coreNum = 0; coreNum < totalCoreCount; ++coreNum) {
         for (unsigned int podNum = 0; podNum < podCount; ++podNum) {
 
-        	unsigned int aggrNum = coreNum / perDirectionPortCount;
-        	
-			NetDeviceContainer devices;
-			NodeContainer nodePair;
+            unsigned int aggrNum = coreNum / perDirectionPortCount;
+            
+            NetDeviceContainer devices;
+            NodeContainer nodePair;
                 
             NS_LOG_LOGIC("Adding the Core Switch " << GetEdgeNodeName(podNum, coreNum, nodeName) << " to the nodePair" << endl);
-			nodePair.Add(GetCoreNodeName(coreNum, nodeName));
+            nodePair.Add(GetCoreNodeName(coreNum, nodeName));
                 
             NS_LOG_LOGIC("Adding the Aggr Switch " << GetAggrNodeName(podNum, aggrNum, nodeName) << " to the nodePair" << endl);
-			nodePair.Add(GetAggrNodeName(podNum, aggrNum, nodeName));
-			
-			devices = point2Point.Install (nodePair);
-			allDevices.Add(devices);
-			
-			//Name the associated devices
-			SetDeviceNames (devices, nodePair);
+            nodePair.Add(GetAggrNodeName(podNum, aggrNum, nodeName));
+            
+            devices = point2Point.Install (nodePair);
+            allDevices.Add(devices);
+            
+            //Name the associated devices
+            SetDeviceNames (devices, nodePair);
 
-			if (m_enableGroupedTracing) {
-				point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(0), true);
-				point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(1), true);
-				point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(0), false, true);
-				point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(1), false, true);
-			}
+            if (m_enableGroupedTracing) {
+                point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(0), true);
+                point2Point.EnableAscii("fat_tree_trace.tr", devices.Get(1), true);
+                point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(0), false, true);
+                point2Point.EnablePcap("fat_tree_pcap_trace.pcap", devices.Get(1), false, true);
+            }
         }
     }
 
@@ -374,13 +381,13 @@ void FatTreeNetwork::Build(void) {
 
     if (!m_enableGroupedTracing) {
 
-	    //Enable PCAP tracing on all devices
-	    NS_LOG_LOGIC("Enable PCAP Tracing on all devices");
-	    point2Point.EnablePcapAll("fat-tree-");	  
+        //Enable PCAP tracing on all devices
+        NS_LOG_LOGIC("Enable PCAP Tracing on all devices");
+        point2Point.EnablePcapAll("fat-tree-");   
 
-  	    //Enable Ascii tracing on all Devices
-	    NS_LOG_LOGIC("Enable ASCII Tracing on all devices");
-	    point2Point.EnableAsciiAll("fat-tree-");
+        //Enable Ascii tracing on all Devices
+        NS_LOG_LOGIC("Enable ASCII Tracing on all devices");
+        point2Point.EnableAsciiAll("fat-tree-");
     }
     
 #if 1
@@ -388,9 +395,9 @@ void FatTreeNetwork::Build(void) {
     //TODO I need to get rid of the cout and use only NS_LOG
     cout << "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" <<endl;
     for (unsigned int i = 0; i < allDevices.GetN(); ++i) {
-    	cout << "Device #" << i << ": Name: " << Names::FindName(allDevices.Get(i)) << ": IP-Address: " ;
-    	GetIpAddressForDevice(allDevices.Get(i)).Print(cout);
-    	cout << endl;
+        cout << "Device #" << i << ": Name: " << Names::FindName(allDevices.Get(i)) << ": IP-Address: " ;
+        GetIpAddressForDevice(allDevices.Get(i)).Print(cout);
+        cout << endl;
     }
     cout << "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << endl;
 #endif 
@@ -400,9 +407,9 @@ void FatTreeNetwork::Build(void) {
 //TODO This function will be moved later outside this file. I made sure it is not a class member
 template<typename T>
 string numberToString (T number) {
-	ostringstream ss;
-	ss << number;
-	return ss.str();
+    ostringstream ss;
+    ss << number;
+    return ss.str();
 }
 
 //Private functions that construct the names for the nodes
@@ -439,13 +446,15 @@ void FatTreeNetwork::SetDeviceNames (NetDeviceContainer& devices,
     string devName;
                    
     NS_LOG_LOGIC("Adding a name to the Dev: " << GetDevName(nodePair.Get(0), nodePair.Get(1), devName) << endl);       
-    Names::Add(GetDevName(nodePair.Get(0),
+    Names::Add(m_prefix,
+               GetDevName(nodePair.Get(0),
                           nodePair.Get(1),
                           devName),
                           devices.Get(0));
 
     NS_LOG_LOGIC("Adding a name to the Dev: " << GetDevName(nodePair.Get(1), nodePair.Get(0), devName) << endl);
-    Names::Add(GetDevName(nodePair.Get(1),
+    Names::Add(m_prefix,
+               GetDevName(nodePair.Get(1),
                           nodePair.Get(0),
                           devName),
                           devices.Get(1));    
@@ -466,53 +475,53 @@ string& FatTreeNetwork::GetHostDevName (unsigned int podNum,
                                        unsigned int edgeNum,
                                        unsigned int hostNum,
                                        string& devName)      {
-	devName  = "dev_host_";
-	devName += numberToString(podNum);
-	devName += "_";
-	devName += numberToString(hostNum);
-	devName += "_edge_";
-	devName += numberToString(podNum);
-	devName += "_";
-	devName += numberToString(edgeNum);
-	
-	return devName;
+    devName  = "dev_host_";
+    devName += numberToString(podNum);
+    devName += "_";
+    devName += numberToString(hostNum);
+    devName += "_edge_";
+    devName += numberToString(podNum);
+    devName += "_";
+    devName += numberToString(edgeNum);
+    
+    return devName;
 }
 
 
 Ipv4Address FatTreeNetwork::GetHostIpAddress (Ptr<Node> node) {
-	NS_LOG_FUNCTION(this);
-	
-	Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-	int32_t interface = ipv4->GetInterfaceForDevice(node->GetDevice(0));	
-	
-	return ipv4->GetAddress(interface, 0).GetLocal();	
+    NS_LOG_FUNCTION(this);
+    
+    Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+    int32_t interface = ipv4->GetInterfaceForDevice(node->GetDevice(0));    
+    
+    return ipv4->GetAddress(interface, 0).GetLocal();   
 }
 
 Ipv4Address FatTreeNetwork::GetHostIpAddress (unsigned int podNum, unsigned int hostNum) {
-	
-	NS_LOG_FUNCTION(this);
-	
-	//Get Associated Edge Switch
-	unsigned int perDirectionPortCount = m_K/2;
-	unsigned int edgeNum = hostNum/perDirectionPortCount;
+    
+    NS_LOG_FUNCTION(this);
+    
+    //Get Associated Edge Switch
+    unsigned int perDirectionPortCount = m_K/2;
+    unsigned int edgeNum = hostNum/perDirectionPortCount;
 
-	string devName;
+    string devName;
 
-	//Find the device using its name
-	Ptr<NetDevice> dev = Names::Find<NetDevice>(GetHostDevName(podNum,edgeNum,hostNum,devName));
-	
-	//return the IP address for that device 
-	return GetIpAddressForDevice(dev);
+    //Find the device using its name
+    Ptr<NetDevice> dev = Names::Find<NetDevice>(m_prefix, GetHostDevName(podNum,edgeNum,hostNum,devName));
+    
+    //return the IP address for that device 
+    return GetIpAddressForDevice(dev);
 }
 
 Ipv4Address FatTreeNetwork::GetIpAddressForDevice (Ptr<NetDevice> dev) {
-	NS_LOG_FUNCTION(dev);
+    NS_LOG_FUNCTION(dev);
 
-	Ptr<Node> node = dev->GetNode();
-	Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-	int32_t interface = ipv4->GetInterfaceForDevice(dev);	
-	
-	return ipv4->GetAddress(interface, 0).GetLocal();
+    Ptr<Node> node = dev->GetNode();
+    Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+    int32_t interface = ipv4->GetInterfaceForDevice(dev);   
+    
+    return ipv4->GetAddress(interface, 0).GetLocal();
 }
 
 
