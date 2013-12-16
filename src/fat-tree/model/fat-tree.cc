@@ -167,6 +167,10 @@ void FatTreeNetwork::Build(void) {
                                   totalHostCount;
 
     NS_LOG_LOGIC("Building Network : " << m_networkName);
+    
+    m_prefix = "Names/FatTreeNetwork/";
+    m_prefix += m_networkName;
+
     NS_LOG_LOGIC("Names will have the Prefix: " << m_prefix);
 
     NS_LOG_LOGIC("Network contains:" << endl 
