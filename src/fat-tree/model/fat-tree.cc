@@ -257,7 +257,6 @@ void FatTreeNetwork::Build(void) {
     PointToPointHelper point2Point;
       
     string devName;
-    NetDeviceContainer allDevices;
     
     //Connecting Hosts to Edge Switches
     point2Point.SetDeviceAttribute ("DataRate", DataRateValue(m_h2eRate));
@@ -277,7 +276,7 @@ void FatTreeNetwork::Build(void) {
                 nodePair.Add(GetHostNodeName(podNum, portNum + perDirectionPortCount * edgeNum, nodeName));
 
                 devices = point2Point.Install (nodePair);
-                allDevices.Add(devices);
+                m_allDevices.Add(devices);
                 
                 //Name the associated devices
                 //Device Name = dev_<from_Node>_<to_Node>
@@ -308,7 +307,7 @@ void FatTreeNetwork::Build(void) {
                 nodePair.Add(GetEdgeNodeName(podNum, edgeNum, nodeName));
 
                 devices = point2Point.Install (nodePair);
-                allDevices.Add(devices);
+                m_allDevices.Add(devices);
                 
                 //Name the associated devices
                 SetDeviceNames (devices, nodePair);
@@ -335,7 +334,7 @@ void FatTreeNetwork::Build(void) {
             nodePair.Add(GetAggrNodeName(podNum, aggrNum, nodeName));
             
             devices = point2Point.Install (nodePair);
-            allDevices.Add(devices);
+            m_allDevices.Add(devices);
             
             //Name the associated devices
             SetDeviceNames (devices, nodePair);
@@ -352,23 +351,34 @@ void FatTreeNetwork::Build(void) {
     NS_LOG_LOGIC("Assigning IP Addresses for all Devices");
     Ipv4AddressHelper address;
     address.SetBase ("10.0.0.0", "255.0.0.0");
-    Ipv4InterfaceContainer interfaces = address.Assign (allDevices);                               
+    Ipv4InterfaceContainer interfaces = address.Assign (m_allDevices);                               
     
 
     //Build Routing tables in all nodes
     NS_LOG_LOGIC("Build Routing Table in all Nodes");
+    Ipv4GlobalRoutingHelper globalRoutingHelper;
     Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+    cout << "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" <<endl;
+    
+    Ptr<OutputStreamWrapper> routingTable = Create<OutputStreamWrapper> ("routingTable", std::ios::out);
+    globalRoutingHelper.PrintRoutingTableAllAt(Seconds(0), routingTable);
+    cout << "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << endl;
     
 #if 1
     //Dumping Device Info for debugging purpose
     //TODO I need to get rid of the cout and use only NS_LOG
-    cout << "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" <<endl;
-    for (unsigned int i = 0; i < allDevices.GetN(); ++i) {
-        cout << "Device #" << i << ": Name: " << Names::FindName(allDevices.Get(i)) << ": IP-Address: " ;
-        GetIpAddressForDevice(allDevices.Get(i)).Print(cout);
-        cout << endl;
+    
+    Ptr<OutputStreamWrapper> devInfo = Create<OutputStreamWrapper> ("devInfo.txt", std::ios::out);
+    for (unsigned int i = 0; i < m_allDevices.GetN(); ++i) {
+        *devInfo->GetStream() << "Device #" << i << ": Name: " << Names::FindName(m_allDevices.Get(i)) << ": IP-Address: " ;
+        GetIpAddressForDevice(m_allDevices.Get(i)).Print(*devInfo->GetStream());
+        *devInfo->GetStream() << endl;
     }
-    cout << "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << endl;
+    
+    Ptr<OutputStreamWrapper> nodeInfo = Create<OutputStreamWrapper> ("nodeInfo.txt", std::ios::out);
+    for (unsigned int i = 0; i < m_allNodes.GetN(); ++i) {
+            *nodeInfo->GetStream() << "Node #" << i << ": Name: " << Names::FindName(m_allNodes.Get(i)) << endl ;
+    }
 #endif 
     
 }// Build()
@@ -493,6 +503,150 @@ Ipv4Address FatTreeNetwork::GetIpAddressForDevice (Ptr<NetDevice> dev) {
     return ipv4->GetAddress(interface, 0).GetLocal();
 }
 
+void FatTreeNetwork::AssignIpAddr(unsigned int baseAddr) {
+    /*
+	 * 
+	 * The formula is as follows. there are six categories:
+	 * (1) on host towards edge
+	 * (2) edge towards host
+	 * (3) edge towards aggr
+	 * (4) aggr towards edge
+	 * (5) aggr towards core
+	 * (6) on core towards aggr
+	 * 
+	 * Each Category will have K^3/4 devices (IP Addresses)
+	 * Total IP Addresses of 3 K^3/2 
+	 * We will use a network of subnet mask 255.0.0.0, which means,
+	 * we will need to get only the first byte and the rest is used
+	 * within the network
+	 * 
+	 * Hierarchy of Addresses as follows,
+	 *
+	 * Address         Scheme
+	 *               | 7 bit   | 1 bit |  6 bit   | 2 bit | 8 bit    |
+	 * Host (to edge)| Pod Num |   0   | Edge Num |  00   | Host Num |
+	 * Edge (to host)| Pod Num |   0   | Edge Num |  10   | Host Num |
+	 * Edge (to aggr)| Pod Num |   0   | Edge Num |  11   | Aggr Num |
+	 * Agg. (to edge)| Pod Num |   0   | Edge Num |  01   | Aggr Num |
+	 *
+	 * Address         Scheme
+	 *               | 7 bit   | 1 bit | 2 bit |  6 bit   | 8 bit    |
+	 * Agg. (to core)| Pod Num |   1   |  00   | Aggr Num | Core Num |
+	 * Core (to aggr)| Pod Num |   1   |  01   | Core Num | Aggr Num |
+	 *
+	 * All Num's starts with zeroes from the left, and local to the pod
+	*/
+	for (unsigned int i = 0; i < m_allDevices.GetN(); ++i) {
+		string str1("");
+		string str2("");
+		string tokens [10];
+		unsigned int index = 0;
+		unsigned int offset = 0;
+		unsigned int podNum, hostNum, edgeNum, aggrNum, coreNum;
+		unsigned char ipAddr[4];
+		
+		ipAddr[0] = baseAddr;
+		
+		string devName = Names::FindName(m_allDevices.Get(i));
+		string myString(devName);
+		
+		//Now we tokenize the string to its components
+		offset = myString.find("_");
+		while (offset != string::npos) {
+			tokens[index++] = myString.substr(0,offset);
+			myString = myString.substr(offset+1);
+			
+			offset = myString.find("_");	
+		}
+		
+		//Now we start to understand the device Name
+		if ((index < 6) || (tokens[0] != "dev")) {
+			NS_LOG_ERROR("Invalid Device Name: " << devName);
+			continue;	
+		}
+		
+        if (tokens[1] == "host") {
+        	//Category 1 Host to Edge
+        	podNum  = atoi(tokens[2].c_str());
+        	hostNum = atoi(tokens[3].c_str());
+        	edgeNum = atoi(tokens[6].c_str());
+        	
+        	ipAddr[1] = (podNum  << 1);
+        	ipAddr[2] = (edgeNum << 2);
+        	ipAddr[3] = hostNum;
+        } 
+        else if (tokens[1] == "edge") {
+        	if (tokens[4] == "host") {
+          	    //Category 2 Edge to Host
+        	    podNum  = atoi(tokens[2].c_str());
+        	    edgeNum = atoi(tokens[3].c_str());
+        	    hostNum = atoi(tokens[6].c_str());
+        	
+        	    ipAddr[1] = (podNum << 1);
+        	    ipAddr[2] = 2 + (edgeNum << 2);
+        	    ipAddr[3] = hostNum;
+        	}
+        	else {
+        		//Category 3 Edge to Aggr
+        	    podNum  = atoi(tokens[2].c_str());
+        	    edgeNum = atoi(tokens[3].c_str());
+        	    aggrNum = atoi(tokens[6].c_str());
+        	
+        	    ipAddr[1] = (podNum << 1);
+        	    ipAddr[2] = 3 + (edgeNum << 2);
+        	    ipAddr[3] = aggrNum;
+        	}
+        }
+        else if (tokens[1] == "aggr") {
+        	if (tokens[4] == "edge") {
+          	    //Category 4 Aggr to Edge
+        	    podNum  = atoi(tokens[2].c_str());
+        	    aggrNum = atoi(tokens[3].c_str());
+        	    edgeNum = atoi(tokens[6].c_str());
+        	
+        	    ipAddr[1] = (podNum << 1);
+        	    ipAddr[2] = 1 + (edgeNum << 2);
+        	    ipAddr[3] = aggrNum;
+        	}
+        	else {
+        		//Category 5 Aggr to Core
+        	    podNum  = atoi(tokens[2].c_str());
+        	    aggrNum = atoi(tokens[3].c_str());
+        	    coreNum = atoi(tokens[5].c_str());
+        	
+        	    ipAddr[1] = 1 + (podNum << 1);
+        	    ipAddr[2] = aggrNum;
+        	    ipAddr[3] = coreNum;
+        	}
+        }
+        else {
+        	//Category 6 Core to Aggr
+    	    coreNum  = atoi(tokens[2].c_str());
+    	    podNum   = atoi(tokens[4].c_str());
+    	    aggrNum  = atoi(tokens[5].c_str());
+    	
+    	    ipAddr[1] = 1 + (podNum << 1);
+    	    ipAddr[2] = coreNum + 64;
+    	    ipAddr[3] = aggrNum;
+        }
+        
+        //Now the full IP address
+        unsigned int fullIpAddress = ipAddr[4] + (ipAddr[3] << 8) + (ipAddr[2] << 16) + (ipAddr[1] << 24);
+        
+        AssignIpAddr(m_allDevices.Get(i), fullIpAddress);
+	}		     	
+}
+
+
+void FatTreeNetwork::AssignIpAddr(Ptr<NetDevice> dev, unsigned int  address) {
+        Ipv4AddressHelper addressHelper;
+        unsigned int baseIpAddress = address & 0xFF000000;
+        addressHelper.SetBase (Ipv4Address(baseIpAddress), "255.0.0.0",Ipv4Address(address));
+	NetDeviceContainer devContainer;
+        devContainer.Add(dev);
+
+        addressHelper.Assign (dev);
+    }
 
 }; //namespace ns3
 

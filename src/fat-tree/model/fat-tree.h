@@ -67,6 +67,9 @@ private:
     NodeContainer  m_aggrSwitches;  //Aggregate Switches
     NodeContainer  m_edgeSwitches;  //Edge Switches
     NodeContainer  m_hosts;         //Host Nodes
+    
+    //Device Container
+    NetDeviceContainer m_allDevices;
 
     //Data Rates of links between the layers 
     DataRate  m_h2eRate;
@@ -102,7 +105,9 @@ private:
                             unsigned int hostNum,
                             string& devName);
 
-
+    
+    void AssignIpAddr(unsigned int baseAddress);
+    void AssignIpAddr(Ptr<NetDevice> dev, unsigned int  address);
 };//class FatTreeNetwork
 
 }; //namespace ns3
