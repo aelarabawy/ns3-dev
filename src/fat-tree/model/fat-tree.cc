@@ -353,7 +353,7 @@ void FatTreeNetwork::Build(void) {
     //address.SetBase ("10.0.0.0", "255.0.0.0");
     //Ipv4InterfaceContainer interfaces = address.Assign (m_allDevices);                               
     
-    AssignIpAddr(10);
+    AssignIpAddrAll(10);
 
     //Build Routing tables in all nodes
     NS_LOG_LOGIC("Build Routing Table in all Nodes");
@@ -758,8 +758,8 @@ void FatTreeNetwork::DecodeDeviceName (string devName, DevDescriptor& desc) {
     return;
 }
 
-void FatTreeNetwork::AssignIpAddr(unsigned int baseAddr) {
-    NS_LOG_FUNCTION(this);
+string FatTreeNetwork::GetDevIpAddress(unsigned int baseAddr, DevDescriptor desc ) {
+    NS_LOG_FUNCTION (this);
 
     /*
      * 
@@ -793,94 +793,123 @@ void FatTreeNetwork::AssignIpAddr(unsigned int baseAddr) {
      *
      * All Num's starts with zeroes from the left, and local to the pod
      */
+
+    unsigned int ipAddr[4];
+    string devIpAddr;
+    ipAddr[0] = baseAddr;
+        
+    switch (desc.m_cat) {
+        case DEV_CAT_HOST_EDGE:
+            ipAddr[1] = (desc.m_podId << 1);
+            ipAddr[2] = (desc.m_toNodeId << 2);
+            ipAddr[3] = desc.m_fromNodeId;
+            break;
+
+        case DEV_CAT_EDGE_HOST:
+            ipAddr[1] = (desc.m_podId << 1);
+            ipAddr[2] = 2 + (desc.m_fromNodeId << 2);
+            ipAddr[3] = desc.m_toNodeId;
+            break;
+        
+        case DEV_CAT_EDGE_AGGR:
+            ipAddr[1] = (desc.m_podId << 1);
+            ipAddr[2] = 3 + (desc.m_fromNodeId << 2);
+            ipAddr[3] = desc.m_toNodeId;
+            break;
+
+        case DEV_CAT_AGGR_EDGE:
+            ipAddr[1] = (desc.m_podId << 1);
+            ipAddr[2] = 1 + (desc.m_toNodeId << 2);
+            ipAddr[3] = desc.m_fromNodeId;
+            break;
+
+        case DEV_CAT_AGGR_CORE:
+            ipAddr[1] = 1 + (desc.m_podId << 1);
+            ipAddr[2] = desc.m_fromNodeId;
+            ipAddr[3] = desc.m_toNodeId;
+            break;
+
+        case DEV_CAT_CORE_AGGR:
+            ipAddr[1] = 1 + (desc.m_podId << 1);
+            ipAddr[2] = desc.m_fromNodeId + 64;
+            ipAddr[3] = desc.m_toNodeId;
+            break;
+
+        case DEV_CAT_INVALID:
+            NS_LOG_ERROR("Invalid Device Category");
+            devIpAddr = "Invalid";
+            return devIpAddr;
+    }
+        
+
+    devIpAddr = numberToString(ipAddr[0]);
+    devIpAddr += '.' + numberToString(ipAddr[1]);
+    devIpAddr += '.' + numberToString(ipAddr[2]);
+    devIpAddr += '.' + numberToString(ipAddr[3]);
+
+    NS_LOG_LOGIC ("IP ADDRESS : " << devIpAddr);
+
+    return devIpAddr;
+}
+
+
+void FatTreeNetwork::AssignIpAddrAll(unsigned int baseAddr) {
+    NS_LOG_FUNCTION(this);
+
 #if 0	
     Ptr<OutputStreamWrapper> devNameVerifier = Create<OutputStreamWrapper> ("devNameVerefier.txt", std::ios::out);
 #endif
+
     for (unsigned int i = 0; i < m_allDevices.GetN(); ++i) {
-        unsigned int ipAddr[4];
         DevDescriptor desc;
-		
-        ipAddr[0] = baseAddr;
-        
+
         string devName = Names::FindName(m_allDevices.Get(i));
         DecodeDeviceName(devName, desc);
+
+        string devIpAddr = GetDevIpAddress (baseAddr, desc);
         
-        switch (desc.m_cat) {
-            case DEV_CAT_HOST_EDGE:
-                ipAddr[1] = (desc.m_podId << 1);
-                ipAddr[2] = (desc.m_toNodeId << 2);
-                ipAddr[3] = desc.m_fromNodeId;
-                break;
-
-            case DEV_CAT_EDGE_HOST:
-                ipAddr[1] = (desc.m_podId << 1);
-                ipAddr[2] = 2 + (desc.m_fromNodeId << 2);
-                ipAddr[3] = desc.m_toNodeId;
-                break;
-        
-            case DEV_CAT_EDGE_AGGR:
-                ipAddr[1] = (desc.m_podId << 1);
-                ipAddr[2] = 3 + (desc.m_fromNodeId << 2);
-                ipAddr[3] = desc.m_toNodeId;
-                break;
-
-            case DEV_CAT_AGGR_EDGE:
-                ipAddr[1] = (desc.m_podId << 1);
-                ipAddr[2] = 1 + (desc.m_toNodeId << 2);
-                ipAddr[3] = desc.m_fromNodeId;
-                break;
-
-            case DEV_CAT_AGGR_CORE:
-                ipAddr[1] = 1 + (desc.m_podId << 1);
-                ipAddr[2] = desc.m_fromNodeId;
-                ipAddr[3] = desc.m_toNodeId;
-                break;
-
-            case DEV_CAT_CORE_AGGR:
-                ipAddr[1] = 1 + (desc.m_podId << 1);
-                ipAddr[2] = desc.m_fromNodeId + 64;
-                ipAddr[3] = desc.m_toNodeId;
-                break;
-
-            case DEV_CAT_INVALID:
-                NS_LOG_ERROR("Invalid Device Name: " << devName);
-                continue;
-        }
-        
-        //Now the full IP address
-        unsigned int fullIpAddress = ipAddr[3] | (ipAddr[2] << 8) | (ipAddr[1] << 16) | (ipAddr[0] << 24);
-
-#if 0  
+        AssignIpAddr (m_allDevices.Get(i), devIpAddr);
+#if 0
         *devNameVerifier->GetStream() << "CAT:POD:FROM:TO = " << desc.m_cat << ":" << desc.m_podId << ":" << desc.m_fromNodeId << ":" << desc.m_toNodeId << endl;
-
-        *devNameVerifier->GetStream() << "IP Address: " << ipAddr[0] << "." << ipAddr[1] << "." << ipAddr[2] << "." << ipAddr[3] << endl;      
-        *devNameVerifier->GetStream() << "IP Address: " << ((fullIpAddress & 0xFF000000) >> 24) << "." << ((fullIpAddress & 0x00FF0000) >> 16);
-        *devNameVerifier->GetStream() << "." << ((fullIpAddress & 0x0000FF00) >> 8) << "." << (fullIpAddress & 0x000000FF) << endl;
+        *devNameVerifier->GetStream() << devIpAddr << endl;
 #endif
-        NS_LOG_LOGIC("IP Address: " << fullIpAddress);
-        AssignIpAddr(m_allDevices.Get(i), fullIpAddress);
-    }		     	
+    }
 }
 
 
 void FatTreeNetwork::AssignIpAddr(Ptr<NetDevice> dev, unsigned int  address) {
-        NS_LOG_FUNCTION(this << dev << address );
-        Ipv4AddressHelper addressHelper;
-        NS_LOG_LOGIC("1");
-        addressHelper.SetBase (Ipv4Address(address & 0xFF000000), "255.0.0.0",Ipv4Address(address & 0x00FFFFFF));
-        NS_LOG_LOGIC("2");
-	NetDeviceContainer devContainer;
-        NS_LOG_LOGIC("3");
-        devContainer.Add(dev);
+    NS_LOG_FUNCTION(this << dev << address );
+    Ipv4AddressHelper addressHelper;
+    addressHelper.SetBase (Ipv4Address(address & 0xFF000000), "255.0.0.0",Ipv4Address(address & 0x00FFFFFF));
+    NetDeviceContainer devContainer;
+    devContainer.Add(dev);
         
-        NS_LOG_LOGIC("4");
-        addressHelper.Assign (devContainer);
-    }
+    addressHelper.Assign (devContainer);
+}
+
+void FatTreeNetwork::AssignIpAddr(Ptr<NetDevice> dev, string address) {
+
+    NS_LOG_FUNCTION(this << dev << address);
+
+    unsigned int offset = address.find('.');
+
+    string baseAddress = address.substr(0,offset);
+    baseAddress += ".0.0.0";
+    
+    string remainingAddress = "0";
+    remainingAddress += address.substr(offset);
+  
+    Ipv4AddressHelper addressHelper;
+    addressHelper.SetBase(Ipv4Address(baseAddress.data()), "255.0.0.0", Ipv4Address(remainingAddress.data()));
+    NetDeviceContainer devContainer;
+    devContainer.Add(dev);
+    addressHelper.Assign (devContainer);
+}
 
 }; //namespace ns3
 
 #if 0
-void AddRoute () {
+void FatTreeNetwork::InstallRoutingTable () {
   /* this is just an example to follow
      change to global routing and adjust
 
@@ -892,9 +921,14 @@ void AddRoute () {
   */
 
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
-  // Create static routes from A to C
+  // For a node nA get the IPv4 stack
+  Ptr<Ipv4> ipv4A = nA->GetObject<Ipv4> ();
+ 
+  // Get static routing table for node nA
   Ptr<Ipv4StaticRouting> staticRoutingA = ipv4RoutingHelper.GetStaticRouting (ipv4A);
+
   // The ifIndex for this outbound route is 1; the first p2p link added
+  // First address is the destination address, next is the next hop, third is the interface
   staticRoutingA->AddHostRouteTo (Ipv4Address ("192.168.1.1"), Ipv4Address ("10.1.1.2"), 1);
 }
 #endif

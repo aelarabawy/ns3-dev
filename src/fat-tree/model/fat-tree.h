@@ -144,8 +144,11 @@ private:
                             string& devName);
 
     
-    void AssignIpAddr(unsigned int baseAddress);
+    void AssignIpAddrAll(unsigned int baseAddress);
     void AssignIpAddr(Ptr<NetDevice> dev, unsigned int  address);
+    void AssignIpAddr(Ptr<NetDevice> dev, string address);
+
+    string GetDevIpAddress(unsigned int baseAddr, DevDescriptor desc );
 };//class FatTreeNetwork
 
 }; //namespace ns3
