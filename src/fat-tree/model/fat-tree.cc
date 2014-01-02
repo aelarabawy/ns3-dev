@@ -349,22 +349,22 @@ void FatTreeNetwork::Build(void) {
     
     //Assign IP Addresses on all Devices
     NS_LOG_LOGIC("Assigning IP Addresses for all Devices");
-    Ipv4AddressHelper address;
-    address.SetBase ("10.0.0.0", "255.0.0.0");
-    Ipv4InterfaceContainer interfaces = address.Assign (m_allDevices);                               
+    //Ipv4AddressHelper address;
+    //address.SetBase ("10.0.0.0", "255.0.0.0");
+    //Ipv4InterfaceContainer interfaces = address.Assign (m_allDevices);                               
     
+    AssignIpAddr(10);
 
     //Build Routing tables in all nodes
     NS_LOG_LOGIC("Build Routing Table in all Nodes");
     Ipv4GlobalRoutingHelper globalRoutingHelper;
     Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
-    cout << "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" <<endl;
-    
+#if 1 
     Ptr<OutputStreamWrapper> routingTable = Create<OutputStreamWrapper> ("routingTable", std::ios::out);
     globalRoutingHelper.PrintRoutingTableAllAt(Seconds(0), routingTable);
-    cout << "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++" << endl;
-    
-#if 1
+#endif
+
+#if 0
     //Dumping Device Info for debugging purpose
     //TODO I need to get rid of the cout and use only NS_LOG
     
@@ -379,6 +379,7 @@ void FatTreeNetwork::Build(void) {
     for (unsigned int i = 0; i < m_allNodes.GetN(); ++i) {
             *nodeInfo->GetStream() << "Node #" << i << ": Name: " << Names::FindName(m_allNodes.Get(i)) << endl ;
     }
+
 #endif 
     
 }// Build()
@@ -391,34 +392,145 @@ string numberToString (T number) {
     return ss.str();
 }
 
-//Private functions that construct the names for the nodes
-string& FatTreeNetwork::GetEdgeNodeName(unsigned int podNum, unsigned int nodeNum, string &nodeName) {
-    nodeName = "edge_";
-    nodeName += numberToString(podNum) + "_" + numberToString(nodeNum);
-    
-    return nodeName;
+
+
+string& FatTreeNetwork::EncodeDeviceName (DevDescriptor &desc, string& devName) {
+    switch (desc.m_cat) {
+        case DEV_CAT_HOST_EDGE:
+            devName  = "dev_host_";
+            devName += numberToString(desc.m_podId);
+            devName += "_";
+            devName += numberToString(desc.m_fromNodeId);
+            devName += "_edge_";
+            devName += numberToString(desc.m_podId);
+            devName += "_";
+            devName += numberToString(desc.m_toNodeId);
+            break;
+
+        case DEV_CAT_EDGE_HOST:
+            devName  = "dev_edge_";
+            devName += numberToString(desc.m_podId);
+            devName += "_";
+            devName += numberToString(desc.m_fromNodeId);
+            devName += "_host_";
+            devName += numberToString(desc.m_podId);
+            devName += "_";
+            devName += numberToString(desc.m_toNodeId);
+            break;
+        
+        case DEV_CAT_EDGE_AGGR:
+            devName  = "dev_edge_";
+            devName += numberToString(desc.m_podId);
+            devName += "_";
+            devName += numberToString(desc.m_fromNodeId);
+            devName += "_aggr_";
+            devName += numberToString(desc.m_podId);
+            devName += "_";
+            devName += numberToString(desc.m_toNodeId);
+            break;
+
+        case DEV_CAT_AGGR_EDGE:
+            devName  = "dev_aggr_";
+            devName += numberToString(desc.m_podId);
+            devName += "_";
+            devName += numberToString(desc.m_fromNodeId);
+            devName += "_edge_";
+            devName += numberToString(desc.m_podId);
+            devName += "_";
+            devName += numberToString(desc.m_toNodeId);
+            break;
+
+        case DEV_CAT_AGGR_CORE:
+            devName  = "dev_aggr_";
+            devName += numberToString(desc.m_podId);
+            devName += "_";
+            devName += numberToString(desc.m_fromNodeId);
+            devName += "_core_";
+            devName += numberToString(desc.m_toNodeId);
+            break;
+
+        case DEV_CAT_CORE_AGGR:
+            devName  = "dev_core_";
+            devName += numberToString(desc.m_fromNodeId);
+            devName += "_aggr_";
+            devName += numberToString(desc.m_podId);
+            devName += "_";
+            devName += numberToString(desc.m_toNodeId);
+            break;
+
+        case DEV_CAT_INVALID:
+                NS_LOG_ERROR("Invalid Device Category: " << desc.m_cat);
+    }
+
+    return devName;
 }
 
-string& FatTreeNetwork::GetAggrNodeName(unsigned int podNum, unsigned int nodeNum, string &nodeName) {
-    nodeName = "aggr_";
-    nodeName += numberToString(podNum) + "_" + numberToString(nodeNum);
-    
-    return nodeName;
-}
+string& FatTreeNetwork::EncodeNodeName (NodeDescriptor &desc, string& nodeName) {
+    switch (desc.m_cat) {
+        case NODE_CAT_HOST:
+            nodeName = "host_";
+            nodeName += numberToString(desc.m_podId) + "_" + numberToString(desc.m_nodeId);
+            break;
 
-string& FatTreeNetwork::GetCoreNodeName(unsigned int nodeNum, string& nodeName) {
-    nodeName = "core_";
-    nodeName += numberToString(nodeNum);
-    
+        case NODE_CAT_EDGE:
+            nodeName = "edge_";
+            nodeName += numberToString(desc.m_podId) + "_" + numberToString(desc.m_nodeId);
+            break;
+
+        case NODE_CAT_AGGR:
+            nodeName = "aggr_";
+            nodeName += numberToString(desc.m_podId) + "_" + numberToString(desc.m_nodeId);
+            break;
+
+        case NODE_CAT_CORE:
+            nodeName = "core_";
+            nodeName += numberToString(desc.m_nodeId);
+            break;
+
+        default:
+            NS_LOG_ERROR("INVALID NODE CATEGORY" << desc.m_cat);
+            nodeName = "INVALID";
+            break;
+    }
+
     return nodeName;
 }
 
 string& FatTreeNetwork::GetHostNodeName(unsigned int podNum, unsigned int nodeNum, string &nodeName) {
-    nodeName = "host_";
-    nodeName += numberToString(podNum) + "_" + numberToString(nodeNum);
+    NodeDescriptor desc;
+    desc.m_cat = NODE_CAT_HOST;
+    desc.m_podId = podNum;
+    desc.m_nodeId = nodeNum;
     
-    return nodeName;
+    return (EncodeNodeName(desc, nodeName));
 }
+
+string& FatTreeNetwork::GetEdgeNodeName(unsigned int podNum, unsigned int nodeNum, string &nodeName) {
+    NodeDescriptor desc;
+    desc.m_cat = NODE_CAT_EDGE;
+    desc.m_podId = podNum;
+    desc.m_nodeId = nodeNum;
+    
+    return (EncodeNodeName(desc, nodeName));
+}
+
+string& FatTreeNetwork::GetAggrNodeName(unsigned int podNum, unsigned int nodeNum, string &nodeName) {
+    NodeDescriptor desc;
+    desc.m_cat = NODE_CAT_AGGR;
+    desc.m_podId = podNum;
+    desc.m_nodeId = nodeNum;
+    
+    return (EncodeNodeName(desc, nodeName));
+}
+
+string& FatTreeNetwork::GetCoreNodeName(unsigned int nodeNum, string& nodeName) {
+    NodeDescriptor desc;
+    desc.m_cat = NODE_CAT_CORE;
+    desc.m_nodeId = nodeNum;
+    
+    return (EncodeNodeName(desc, nodeName));
+}
+
 
 void FatTreeNetwork::SetDeviceNames (NetDeviceContainer& devices,
                                     NodeContainer& nodePair) {
@@ -454,16 +566,13 @@ string& FatTreeNetwork::GetHostDevName (unsigned int podNum,
                                        unsigned int edgeNum,
                                        unsigned int hostNum,
                                        string& devName)      {
-    devName  = "dev_host_";
-    devName += numberToString(podNum);
-    devName += "_";
-    devName += numberToString(hostNum);
-    devName += "_edge_";
-    devName += numberToString(podNum);
-    devName += "_";
-    devName += numberToString(edgeNum);
-    
-    return devName;
+    DevDescriptor desc;
+    desc.m_cat = DEV_CAT_HOST_EDGE;
+    desc.m_podId = podNum;
+    desc.m_fromNodeId = hostNum;
+    desc.m_toNodeId = edgeNum;
+
+    return (EncodeDeviceName(desc, devName));
 }
 
 
@@ -503,150 +612,289 @@ Ipv4Address FatTreeNetwork::GetIpAddressForDevice (Ptr<NetDevice> dev) {
     return ipv4->GetAddress(interface, 0).GetLocal();
 }
 
+
+void FatTreeNetwork::DecodeNodeName (string nodeName, NodeDescriptor& desc) {
+#if 0	
+    Ptr<OutputStreamWrapper> nodeNameVerifier = Create<OutputStreamWrapper> ("nodeNameVerefier.txt", std::ios::out);
+#endif
+    string tokens [10];
+    unsigned int index = 0;
+    size_t offset = 0;
+
+    string myString(nodeName);
+		
+    //Now we tokenize the string to its components
+    offset = myString.find("_");
+    while (offset != string::npos) {
+        tokens[index++] = myString.substr(0,offset);
+        myString = myString.substr(offset+1);
+
+        offset = myString.find("_");	
+    }
+    tokens[index++] = myString;
+
+#if 0
+        *nodeNameVerifier->GetStream() << "Node Name: " << nodeName << "tokens: ";
+        for (int tokenId = 0; tokenId < index; ++tokenId) {
+            *nodeNameVerifier->GetStream() << "(" << tokenId << ")" << tokens[tokenId] << endl;
+        }		
+#endif
+
+    //Now we start to understand the node Name
+    if ((index < 2) || (index > 3)) {
+        NS_LOG_ERROR("Invalid Node Name: " << nodeName);
+        desc.m_cat = NODE_CAT_INVALID;
+        return;
+    }
+
+    if (tokens[0] == "host") {
+        desc.m_cat = NODE_CAT_HOST;
+        desc.m_podId = atoi(tokens[1].c_str());
+        desc.m_nodeId = atoi(tokens[2].c_str());
+    } else if (tokens[0] == "edge") {
+        desc.m_cat = NODE_CAT_EDGE;
+        desc.m_podId = atoi(tokens[1].c_str());
+        desc.m_nodeId = atoi(tokens[2].c_str());
+    } else if (tokens[0] == "aggr") {
+        desc.m_cat = NODE_CAT_AGGR;
+        desc.m_podId = atoi(tokens[1].c_str());
+        desc.m_nodeId = atoi(tokens[2].c_str());
+    } else if (tokens[0] == "core") {
+        desc.m_cat = NODE_CAT_CORE;
+        desc.m_nodeId = atoi(tokens[2].c_str());
+    }
+        
+
+#if 0  
+        *nodeNameVerifier->GetStream() << "CAT:POD:NODE " << desc.m_cat << ":" << desc.m_podId << ":" << desc.nodeId << endl;
+#endif
+
+    return;
+}
+
+
+void FatTreeNetwork::DecodeDeviceName (string devName, DevDescriptor& desc) {
+#if 0	
+    Ptr<OutputStreamWrapper> devNameVerifier = Create<OutputStreamWrapper> ("devNameVerefier.txt", std::ios::out);
+#endif
+    string tokens [10];
+    unsigned int index = 0;
+    size_t offset = 0;
+
+    string myString(devName);
+		
+    //Now we tokenize the string to its components
+    offset = myString.find("_");
+    while (offset != string::npos) {
+        tokens[index++] = myString.substr(0,offset);
+        myString = myString.substr(offset+1);
+
+        offset = myString.find("_");	
+    }
+    tokens[index++] = myString;
+
+#if 0
+        *devNameVerifier->GetStream() << "DevName: " << devName << "tokens: ";
+        for (int tokenId = 0; tokenId < 7; ++tokenId) {
+            *devNameVerifier->GetStream() << "(" << tokenId << ")" << tokens[tokenId] << endl;
+        }		
+#endif
+
+    //Now we start to understand the device Name
+    if ((index < 6) || (tokens[0] != "dev")) {
+        NS_LOG_ERROR("Invalid Device Name: " << devName);
+        desc.m_cat = DEV_CAT_INVALID;
+        return;	
+    }
+
+    if (tokens[1] == "host") {
+        //Category 1 Host to Edge
+        desc.m_cat = DEV_CAT_HOST_EDGE;
+        desc.m_podId = atoi(tokens[2].c_str());
+        desc.m_fromNodeId = atoi(tokens[3].c_str());
+        desc.m_toNodeId = atoi(tokens[6].c_str());
+
+    } else if (tokens[1] == "edge") {
+        if (tokens[4] == "host") {
+            //Category 2 Edge to Host
+            desc.m_cat = DEV_CAT_EDGE_HOST;
+            desc.m_podId = atoi(tokens[2].c_str());
+            desc.m_fromNodeId = atoi(tokens[3].c_str());
+            desc.m_toNodeId = atoi(tokens[6].c_str());
+        } else {
+            //Category 3 Edge to Aggr
+            desc.m_cat = DEV_CAT_EDGE_AGGR;
+            desc.m_podId = atoi(tokens[2].c_str());
+            desc.m_fromNodeId = atoi(tokens[3].c_str());
+            desc.m_toNodeId = atoi(tokens[6].c_str());
+        }
+    } else if (tokens[1] == "aggr") {
+        if (tokens[4] == "edge") {
+            //Category 4 Aggr to Edge
+            desc.m_cat = DEV_CAT_AGGR_EDGE;
+            desc.m_podId = atoi(tokens[2].c_str());
+            desc.m_fromNodeId = atoi(tokens[3].c_str());
+            desc.m_toNodeId = atoi(tokens[6].c_str());
+        } else {
+            //Category 5 Aggr to Core
+            desc.m_cat = DEV_CAT_AGGR_CORE;
+            desc.m_podId = atoi(tokens[2].c_str());
+            desc.m_fromNodeId = atoi(tokens[3].c_str());
+            desc.m_toNodeId = atoi(tokens[5].c_str());
+        }
+    } else {
+        //Category 6 Core to Aggr
+        desc.m_cat = DEV_CAT_CORE_AGGR;
+        desc.m_podId = atoi(tokens[4].c_str());
+        desc.m_fromNodeId = atoi(tokens[2].c_str());
+        desc.m_toNodeId = atoi(tokens[5].c_str());
+    }
+        
+
+#if 0  
+        *devNameVerifier->GetStream() << "POD:Host:Edge:Aggr:Core = " << desc.m_cat << ":" << desc.m_podId << ":" << desc.m_fromNode << ":" << desc.m_toNode << endl;
+#endif
+
+    return;
+}
+
 void FatTreeNetwork::AssignIpAddr(unsigned int baseAddr) {
+    NS_LOG_FUNCTION(this);
+
     /*
-	 * 
-	 * The formula is as follows. there are six categories:
-	 * (1) on host towards edge
-	 * (2) edge towards host
-	 * (3) edge towards aggr
-	 * (4) aggr towards edge
-	 * (5) aggr towards core
-	 * (6) on core towards aggr
-	 * 
-	 * Each Category will have K^3/4 devices (IP Addresses)
-	 * Total IP Addresses of 3 K^3/2 
-	 * We will use a network of subnet mask 255.0.0.0, which means,
-	 * we will need to get only the first byte and the rest is used
-	 * within the network
-	 * 
-	 * Hierarchy of Addresses as follows,
-	 *
-	 * Address         Scheme
-	 *               | 7 bit   | 1 bit |  6 bit   | 2 bit | 8 bit    |
-	 * Host (to edge)| Pod Num |   0   | Edge Num |  00   | Host Num |
-	 * Edge (to host)| Pod Num |   0   | Edge Num |  10   | Host Num |
-	 * Edge (to aggr)| Pod Num |   0   | Edge Num |  11   | Aggr Num |
-	 * Agg. (to edge)| Pod Num |   0   | Edge Num |  01   | Aggr Num |
-	 *
-	 * Address         Scheme
-	 *               | 7 bit   | 1 bit | 2 bit |  6 bit   | 8 bit    |
-	 * Agg. (to core)| Pod Num |   1   |  00   | Aggr Num | Core Num |
-	 * Core (to aggr)| Pod Num |   1   |  01   | Core Num | Aggr Num |
-	 *
-	 * All Num's starts with zeroes from the left, and local to the pod
-	*/
-	for (unsigned int i = 0; i < m_allDevices.GetN(); ++i) {
-		string str1("");
-		string str2("");
-		string tokens [10];
-		unsigned int index = 0;
-		unsigned int offset = 0;
-		unsigned int podNum, hostNum, edgeNum, aggrNum, coreNum;
-		unsigned char ipAddr[4];
+     * 
+     * The formula is as follows. there are six categories:
+     * (1) on host towards edge
+     * (2) edge towards host
+     * (3) edge towards aggr
+     * (4) aggr towards edge
+     * (5) aggr towards core
+     * (6) on core towards aggr
+     * 
+     * Each Category will have K^3/4 devices (IP Addresses)
+     * Total IP Addresses of 3 K^3/2 
+     * We will use a network of subnet mask 255.0.0.0, which means,
+     * we will need to get only the first byte and the rest is used
+     * within the network
+     * 
+     * Hierarchy of Addresses as follows,
+     *
+     * Address         Scheme
+     *               | 7 bit   | 1 bit |  6 bit   | 2 bit | 8 bit    |
+     * Host (to edge)| Pod Num |   0   | Edge Num |  00   | Host Num |
+     * Edge (to host)| Pod Num |   0   | Edge Num |  10   | Host Num |
+     * Edge (to aggr)| Pod Num |   0   | Edge Num |  11   | Aggr Num |
+     * Agg. (to edge)| Pod Num |   0   | Edge Num |  01   | Aggr Num |
+     *
+     * Address         Scheme
+     *               | 7 bit   | 1 bit | 2 bit |  6 bit   | 8 bit    |
+     * Agg. (to core)| Pod Num |   1   |  00   | Aggr Num | Core Num |
+     * Core (to aggr)| Pod Num |   1   |  01   | Core Num | Aggr Num |
+     *
+     * All Num's starts with zeroes from the left, and local to the pod
+     */
+#if 0	
+    Ptr<OutputStreamWrapper> devNameVerifier = Create<OutputStreamWrapper> ("devNameVerefier.txt", std::ios::out);
+#endif
+    for (unsigned int i = 0; i < m_allDevices.GetN(); ++i) {
+        unsigned int ipAddr[4];
+        DevDescriptor desc;
 		
-		ipAddr[0] = baseAddr;
-		
-		string devName = Names::FindName(m_allDevices.Get(i));
-		string myString(devName);
-		
-		//Now we tokenize the string to its components
-		offset = myString.find("_");
-		while (offset != string::npos) {
-			tokens[index++] = myString.substr(0,offset);
-			myString = myString.substr(offset+1);
-			
-			offset = myString.find("_");	
-		}
-		
-		//Now we start to understand the device Name
-		if ((index < 6) || (tokens[0] != "dev")) {
-			NS_LOG_ERROR("Invalid Device Name: " << devName);
-			continue;	
-		}
-		
-        if (tokens[1] == "host") {
-        	//Category 1 Host to Edge
-        	podNum  = atoi(tokens[2].c_str());
-        	hostNum = atoi(tokens[3].c_str());
-        	edgeNum = atoi(tokens[6].c_str());
-        	
-        	ipAddr[1] = (podNum  << 1);
-        	ipAddr[2] = (edgeNum << 2);
-        	ipAddr[3] = hostNum;
-        } 
-        else if (tokens[1] == "edge") {
-        	if (tokens[4] == "host") {
-          	    //Category 2 Edge to Host
-        	    podNum  = atoi(tokens[2].c_str());
-        	    edgeNum = atoi(tokens[3].c_str());
-        	    hostNum = atoi(tokens[6].c_str());
-        	
-        	    ipAddr[1] = (podNum << 1);
-        	    ipAddr[2] = 2 + (edgeNum << 2);
-        	    ipAddr[3] = hostNum;
-        	}
-        	else {
-        		//Category 3 Edge to Aggr
-        	    podNum  = atoi(tokens[2].c_str());
-        	    edgeNum = atoi(tokens[3].c_str());
-        	    aggrNum = atoi(tokens[6].c_str());
-        	
-        	    ipAddr[1] = (podNum << 1);
-        	    ipAddr[2] = 3 + (edgeNum << 2);
-        	    ipAddr[3] = aggrNum;
-        	}
-        }
-        else if (tokens[1] == "aggr") {
-        	if (tokens[4] == "edge") {
-          	    //Category 4 Aggr to Edge
-        	    podNum  = atoi(tokens[2].c_str());
-        	    aggrNum = atoi(tokens[3].c_str());
-        	    edgeNum = atoi(tokens[6].c_str());
-        	
-        	    ipAddr[1] = (podNum << 1);
-        	    ipAddr[2] = 1 + (edgeNum << 2);
-        	    ipAddr[3] = aggrNum;
-        	}
-        	else {
-        		//Category 5 Aggr to Core
-        	    podNum  = atoi(tokens[2].c_str());
-        	    aggrNum = atoi(tokens[3].c_str());
-        	    coreNum = atoi(tokens[5].c_str());
-        	
-        	    ipAddr[1] = 1 + (podNum << 1);
-        	    ipAddr[2] = aggrNum;
-        	    ipAddr[3] = coreNum;
-        	}
-        }
-        else {
-        	//Category 6 Core to Aggr
-    	    coreNum  = atoi(tokens[2].c_str());
-    	    podNum   = atoi(tokens[4].c_str());
-    	    aggrNum  = atoi(tokens[5].c_str());
-    	
-    	    ipAddr[1] = 1 + (podNum << 1);
-    	    ipAddr[2] = coreNum + 64;
-    	    ipAddr[3] = aggrNum;
+        ipAddr[0] = baseAddr;
+        
+        string devName = Names::FindName(m_allDevices.Get(i));
+        DecodeDeviceName(devName, desc);
+        
+        switch (desc.m_cat) {
+            case DEV_CAT_HOST_EDGE:
+                ipAddr[1] = (desc.m_podId << 1);
+                ipAddr[2] = (desc.m_toNodeId << 2);
+                ipAddr[3] = desc.m_fromNodeId;
+                break;
+
+            case DEV_CAT_EDGE_HOST:
+                ipAddr[1] = (desc.m_podId << 1);
+                ipAddr[2] = 2 + (desc.m_fromNodeId << 2);
+                ipAddr[3] = desc.m_toNodeId;
+                break;
+        
+            case DEV_CAT_EDGE_AGGR:
+                ipAddr[1] = (desc.m_podId << 1);
+                ipAddr[2] = 3 + (desc.m_fromNodeId << 2);
+                ipAddr[3] = desc.m_toNodeId;
+                break;
+
+            case DEV_CAT_AGGR_EDGE:
+                ipAddr[1] = (desc.m_podId << 1);
+                ipAddr[2] = 1 + (desc.m_toNodeId << 2);
+                ipAddr[3] = desc.m_fromNodeId;
+                break;
+
+            case DEV_CAT_AGGR_CORE:
+                ipAddr[1] = 1 + (desc.m_podId << 1);
+                ipAddr[2] = desc.m_fromNodeId;
+                ipAddr[3] = desc.m_toNodeId;
+                break;
+
+            case DEV_CAT_CORE_AGGR:
+                ipAddr[1] = 1 + (desc.m_podId << 1);
+                ipAddr[2] = desc.m_fromNodeId + 64;
+                ipAddr[3] = desc.m_toNodeId;
+                break;
+
+            case DEV_CAT_INVALID:
+                NS_LOG_ERROR("Invalid Device Name: " << devName);
+                continue;
         }
         
         //Now the full IP address
-        unsigned int fullIpAddress = ipAddr[4] + (ipAddr[3] << 8) + (ipAddr[2] << 16) + (ipAddr[1] << 24);
-        
+        unsigned int fullIpAddress = ipAddr[3] | (ipAddr[2] << 8) | (ipAddr[1] << 16) | (ipAddr[0] << 24);
+
+#if 0  
+        *devNameVerifier->GetStream() << "CAT:POD:FROM:TO = " << desc.m_cat << ":" << desc.m_podId << ":" << desc.m_fromNodeId << ":" << desc.m_toNodeId << endl;
+
+        *devNameVerifier->GetStream() << "IP Address: " << ipAddr[0] << "." << ipAddr[1] << "." << ipAddr[2] << "." << ipAddr[3] << endl;      
+        *devNameVerifier->GetStream() << "IP Address: " << ((fullIpAddress & 0xFF000000) >> 24) << "." << ((fullIpAddress & 0x00FF0000) >> 16);
+        *devNameVerifier->GetStream() << "." << ((fullIpAddress & 0x0000FF00) >> 8) << "." << (fullIpAddress & 0x000000FF) << endl;
+#endif
+        NS_LOG_LOGIC("IP Address: " << fullIpAddress);
         AssignIpAddr(m_allDevices.Get(i), fullIpAddress);
-	}		     	
+    }		     	
 }
 
 
 void FatTreeNetwork::AssignIpAddr(Ptr<NetDevice> dev, unsigned int  address) {
+        NS_LOG_FUNCTION(this << dev << address );
         Ipv4AddressHelper addressHelper;
-        unsigned int baseIpAddress = address & 0xFF000000;
-        addressHelper.SetBase (Ipv4Address(baseIpAddress), "255.0.0.0",Ipv4Address(address));
+        NS_LOG_LOGIC("1");
+        addressHelper.SetBase (Ipv4Address(address & 0xFF000000), "255.0.0.0",Ipv4Address(address & 0x00FFFFFF));
+        NS_LOG_LOGIC("2");
 	NetDeviceContainer devContainer;
+        NS_LOG_LOGIC("3");
         devContainer.Add(dev);
-
-        addressHelper.Assign (dev);
+        
+        NS_LOG_LOGIC("4");
+        addressHelper.Assign (devContainer);
     }
 
 }; //namespace ns3
 
+#if 0
+void AddRoute () {
+  /* this is just an example to follow
+     change to global routing and adjust
+
+     1. define a routing helper
+     2. get the routing protocol object aasigned for the node
+     3. add the requieed routes to that object *
+
+     Good example is in ./src/test/static-routing-test-suite()   
+  */
+
+  Ipv4StaticRoutingHelper ipv4RoutingHelper;
+  // Create static routes from A to C
+  Ptr<Ipv4StaticRouting> staticRoutingA = ipv4RoutingHelper.GetStaticRouting (ipv4A);
+  // The ifIndex for this outbound route is 1; the first p2p link added
+  staticRoutingA->AddHostRouteTo (Ipv4Address ("192.168.1.1"), Ipv4Address ("10.1.1.2"), 1);
+}
+#endif

@@ -31,6 +31,38 @@ using namespace std;
 
 namespace ns3 {
 
+enum DevCategory {
+    DEV_CAT_HOST_EDGE,
+    DEV_CAT_EDGE_HOST,
+    DEV_CAT_EDGE_AGGR,
+    DEV_CAT_AGGR_EDGE,
+    DEV_CAT_AGGR_CORE,
+    DEV_CAT_CORE_AGGR,
+    DEV_CAT_INVALID
+};
+
+enum NodeCategory {
+    NODE_CAT_HOST,
+    NODE_CAT_EDGE,
+    NODE_CAT_AGGR,
+    NODE_CAT_CORE,
+    NODE_CAT_INVALID
+};
+
+struct DevDescriptor {
+    DevCategory  m_cat;
+    unsigned int m_podId;
+    unsigned int m_fromNodeId;
+    unsigned int m_toNodeId;
+};
+
+struct NodeDescriptor {
+    NodeCategory m_cat;
+    unsigned int m_podId;
+    unsigned int m_nodeId;
+};
+
+
 class FatTreeNetwork : public Object
 {
 public:
@@ -48,7 +80,13 @@ public:
     Ipv4Address GetHostIpAddress (Ptr<Node> host);
     Ipv4Address GetHostIpAddress (unsigned int podNum, unsigned int hostNum);
     string& GetHostNodeName(unsigned int podNum, unsigned int nodeNum, string& name);
-    
+
+    string& EncodeNodeName   (NodeDescriptor &desc, string& nodeName);
+    string& EncodeDeviceName (DevDescriptor  &desc, string& devName);
+
+    void DecodeDeviceName (string devName, DevDescriptor& desc);
+    void DecodeNodeName   (string nodeName, NodeDescriptor& desc);  
+
     Ipv4Address GetIpAddressForDevice (Ptr<NetDevice> dev);
 
 private:
