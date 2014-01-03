@@ -89,6 +89,8 @@ public:
 
     Ipv4Address GetIpAddressForDevice (Ptr<NetDevice> dev);
 
+    void InstallStaticRoutingTableAll ();
+
 private:
     // Parameters
     

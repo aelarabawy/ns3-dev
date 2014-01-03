@@ -357,11 +357,19 @@ void FatTreeNetwork::Build(void) {
 
     //Build Routing tables in all nodes
     NS_LOG_LOGIC("Build Routing Table in all Nodes");
+
+
+    InstallStaticRoutingTableAll ();
+#if 0
     Ipv4GlobalRoutingHelper globalRoutingHelper;
     Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+#endif
+
 #if 1 
     Ptr<OutputStreamWrapper> routingTable = Create<OutputStreamWrapper> ("routingTable", std::ios::out);
-    globalRoutingHelper.PrintRoutingTableAllAt(Seconds(0), routingTable);
+    //globalRoutingHelper.PrintRoutingTableAllAt(Seconds(0), routingTable);
+    Ipv4StaticRoutingHelper staticRoutingHelper;
+    staticRoutingHelper.PrintRoutingTableAllAt(Seconds(0), routingTable);
 #endif
 
 #if 0
@@ -906,29 +914,188 @@ void FatTreeNetwork::AssignIpAddr(Ptr<NetDevice> dev, string address) {
     addressHelper.Assign (devContainer);
 }
 
-}; //namespace ns3
 
-#if 0
-void FatTreeNetwork::InstallRoutingTable () {
-  /* this is just an example to follow
-     change to global routing and adjust
 
-     1. define a routing helper
-     2. get the routing protocol object aasigned for the node
-     3. add the requieed routes to that object *
+void FatTreeNetwork::InstallStaticRoutingTableAll () {
+    /*
+     * First routing table for Host-Edge links
+     * Each host will have 1 route to the connected edge switch for all traffic
+     * And Edge host will forward the host traffic to the proper host
+     */
+    unsigned int podCount = m_K;
+    unsigned int perPodHostCount = m_K * m_K /4;
+    unsigned int perDirectionPortCount = m_K /2;
+    unsigned int perPodEdgeCount = m_K/2;
+    unsigned int perPodAggrCount = m_K/2;
+    unsigned int totalCoreCount  = m_K * m_K /4;
+    
+    Ipv4StaticRoutingHelper ipv4RoutingHelper;
+                
+    for (unsigned int podNum = 0; podNum < podCount; ++podNum) {
+        for (unsigned int hostNum = 0; hostNum < perPodHostCount; ++hostNum) {
+            string name;
 
-     Good example is in ./src/test/static-routing-test-suite()   
-  */
+            //Get the Host node
+            Ptr<Node> host = Names::Find<Node> (m_prefix, GetHostNodeName(podNum, hostNum, name));
+            if (!host) {
+                NS_LOG_ERROR("Invalid Host Node " << podNum << ":" << hostNum);
+            }
 
-  Ipv4StaticRoutingHelper ipv4RoutingHelper;
-  // For a node nA get the IPv4 stack
-  Ptr<Ipv4> ipv4A = nA->GetObject<Ipv4> ();
+            unsigned int edgeNum = hostNum / perDirectionPortCount;
+            Ptr<Node> edge = Names::Find<Node> (m_prefix, GetEdgeNodeName(podNum, edgeNum, name));
+            if (!edge) {
+                NS_LOG_ERROR("Invalid Edge Node " << podNum << ":" << edgeNum);
+            }
+             
+            //Get the IPv4 stack for both nodes
+            Ptr<Ipv4> hostIpv4 = host->GetObject<Ipv4> ();
+            Ptr<Ipv4> edgeIpv4 = edge->GetObject<Ipv4> ();
+             
+            //Get the static Routing Table in both nodes
+            Ptr<Ipv4StaticRouting> staticRoutingHost = ipv4RoutingHelper.GetStaticRouting (hostIpv4);
+            Ptr<Ipv4StaticRouting> staticRoutingEdge = ipv4RoutingHelper.GetStaticRouting (edgeIpv4);
+
+            //Now we need to get the IP address for the device in the edge connected to this host
+            Ptr<NetDevice> hostDev  = Names::Find<NetDevice> (m_prefix, GetDevName(host, edge, name)); 
+            Ptr<NetDevice> edgeDev  = Names::Find<NetDevice> (m_prefix, GetDevName(edge, host, name));
+
+            //Get IP address for both devices
+            Ipv4Address hostAddr = GetIpAddressForDevice (hostDev);
+            //Ipv4Address edgeAddr = GetIpAddressForDevice (edgeDev);
+
+            Ipv4Address baseAddr = hostAddr.CombineMask("255.0.0.0");
+
+            //Get the interfaces
+            int32_t hostInterface = hostIpv4->GetInterfaceForDevice(hostDev);
+            int32_t edgeInterface = edgeIpv4->GetInterfaceForDevice(edgeDev);
+
+             
+            //Now add the route in the host node
+            //All address space within the network is routed to the edge switch
+            staticRoutingHost->AddNetworkRouteTo(baseAddr, "255.0.0.0", hostInterface);
+
+            //Add the route in the edge switch
+            //Only traffic to the host is routed to it
+            staticRoutingEdge->AddHostRouteTo(hostAddr,edgeInterface);             
+        }
+    }
+
+    //Adding routes for the Edge - Aggr links
+    for (unsigned int podNum = 0; podNum < podCount; ++podNum) {
+        for (unsigned int edgeNum = 0; edgeNum < perPodEdgeCount; ++edgeNum) {
+            for (unsigned int aggrNum = 0; aggrNum < perPodAggrCount; ++aggrNum) {
+                string name;
+
+                //Get the edge switch node
+                Ptr<Node> edge = Names::Find<Node> (m_prefix, GetEdgeNodeName(podNum, edgeNum, name));
+                if (!edge) {
+                    NS_LOG_ERROR("Invalid Edge Node " << podNum << ":" << edgeNum);
+                }
+
+                //Get the aggr switch node
+                Ptr<Node> aggr = Names::Find<Node> (m_prefix, GetAggrNodeName(podNum, aggrNum, name));
+                if (!aggr) {
+                    NS_LOG_ERROR("Invalid Aggr Node " << podNum << ":" << aggrNum);
+                }
+             
+                //Get the IPv4 stack for both nodes
+                Ptr<Ipv4> edgeIpv4 = edge->GetObject<Ipv4> ();
+                Ptr<Ipv4> aggrIpv4 = aggr->GetObject<Ipv4> ();
+             
+                //Get the static Routing Table in both nodes
+                Ptr<Ipv4StaticRouting> staticRoutingEdge = ipv4RoutingHelper.GetStaticRouting (edgeIpv4);
+                Ptr<Ipv4StaticRouting> staticRoutingAggr = ipv4RoutingHelper.GetStaticRouting (aggrIpv4);
+
+                //We now get the devices
+                Ptr<NetDevice> edgeDev  = Names::Find<NetDevice> (m_prefix, GetDevName(edge, aggr, name)); 
+                Ptr<NetDevice> aggrDev  = Names::Find<NetDevice> (m_prefix, GetDevName(aggr, edge, name));
+
+                //Get IP address for both devices
+                Ipv4Address edgeAddr = GetIpAddressForDevice (edgeDev);
+                //Ipv4Address aggrAddr = GetIpAddressForDevice (aggrDev);
+
+                Ipv4Address baseAddr = edgeAddr.CombineMask("255.0.0.0");
+                uint8_t buf[4];
+                edgeAddr.Serialize(buf);
+                buf[3] = 0;
+                buf[2] &= 0xFC;
+
+                Ipv4Address edgeNetworkAddr = Ipv4Address::Deserialize(buf);
+                
+                //Get the interfaces
+                int32_t edgeInterface = edgeIpv4->GetInterfaceForDevice(edgeDev);
+                int32_t aggrInterface = aggrIpv4->GetInterfaceForDevice(aggrDev);
+
+             
+                //Now add the route in the edge node
+                //All address space within the network is routed to the aggr switch
+                staticRoutingEdge->AddNetworkRouteTo(baseAddr, "255.0.0.0", edgeInterface);
+
+                //Add the route in the aggr switch
+                //Only traffic to the hosts connected to the edge switch
+                staticRoutingAggr->AddNetworkRouteTo(edgeNetworkAddr,"255.255.252.0",aggrInterface);                  
+            }
+        }
+    }
+
  
-  // Get static routing table for node nA
-  Ptr<Ipv4StaticRouting> staticRoutingA = ipv4RoutingHelper.GetStaticRouting (ipv4A);
+    for (unsigned int coreNum = 0; coreNum < totalCoreCount; ++coreNum) {
+        for (unsigned int podNum = 0; podNum < podCount; ++podNum) {
 
-  // The ifIndex for this outbound route is 1; the first p2p link added
-  // First address is the destination address, next is the next hop, third is the interface
-  staticRoutingA->AddHostRouteTo (Ipv4Address ("192.168.1.1"), Ipv4Address ("10.1.1.2"), 1);
+            unsigned int aggrNum = coreNum / perDirectionPortCount;
+            string name;
+
+            //Get the aggr switch node
+            Ptr<Node> aggr = Names::Find<Node> (m_prefix, GetAggrNodeName(podNum, aggrNum, name));
+            if (!aggr) {
+                NS_LOG_ERROR("Invalid Aggr Node " << podNum << ":" << aggrNum);
+            }
+ 
+            //Get the core switch node
+            Ptr<Node> core = Names::Find<Node> (m_prefix, GetCoreNodeName(coreNum, name));
+            if (!core) {
+                NS_LOG_ERROR("Invalid Core Node " << coreNum);
+            }
+             
+            //Get the IPv4 stack for both nodes
+            Ptr<Ipv4> aggrIpv4 = aggr->GetObject<Ipv4> ();
+            Ptr<Ipv4> coreIpv4 = core->GetObject<Ipv4> ();
+             
+            //Get the static Routing Table in both nodes
+            Ptr<Ipv4StaticRouting> staticRoutingAggr = ipv4RoutingHelper.GetStaticRouting (aggrIpv4);
+            Ptr<Ipv4StaticRouting> staticRoutingCore = ipv4RoutingHelper.GetStaticRouting (coreIpv4);
+
+            //We now get the devices
+            Ptr<NetDevice> aggrDev  = Names::Find<NetDevice> (m_prefix, GetDevName(aggr, core, name)); 
+            Ptr<NetDevice> coreDev  = Names::Find<NetDevice> (m_prefix, GetDevName(core, aggr, name));
+
+            //Get IP address for both devices
+            Ipv4Address aggrAddr = GetIpAddressForDevice (aggrDev);
+            //Ipv4Address coreAddr = GetIpAddressForDevice (coreDev);
+
+            Ipv4Address baseAddr = aggrAddr.CombineMask("255.0.0.0");
+            uint8_t buf[4];
+            aggrAddr.Serialize(buf);
+            buf[3] = 0;
+            buf[2] = 0;
+            buf[1] &= 0xFE;
+
+            Ipv4Address aggrNetworkAddr = Ipv4Address::Deserialize(buf);
+                
+            //Get the interfaces
+            int32_t aggrInterface = aggrIpv4->GetInterfaceForDevice(aggrDev);
+            int32_t coreInterface = coreIpv4->GetInterfaceForDevice(coreDev);
+
+             
+            //Now add the route in the Aggr node
+            //All address space within the network is routed to the core switch
+            staticRoutingAggr->AddNetworkRouteTo(baseAddr, "255.0.0.0", aggrInterface);
+
+            //Add the route in the aggr switch
+            //Only traffic to the hosts connected to the edge switch
+            staticRoutingCore->AddNetworkRouteTo(aggrNetworkAddr,"255.254.0.0",coreInterface);                             
+        }
+    }
 }
-#endif
+
+}; //namespace ns3
