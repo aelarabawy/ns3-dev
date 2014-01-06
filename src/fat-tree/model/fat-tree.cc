@@ -349,18 +349,15 @@ void FatTreeNetwork::Build(void) {
     
     //Assign IP Addresses on all Devices
     NS_LOG_LOGIC("Assigning IP Addresses for all Devices");
-    //Ipv4AddressHelper address;
-    //address.SetBase ("10.0.0.0", "255.0.0.0");
-    //Ipv4InterfaceContainer interfaces = address.Assign (m_allDevices);                               
     
     AssignIpAddrAll(10);
 
     //Build Routing tables in all nodes
     NS_LOG_LOGIC("Build Routing Table in all Nodes");
 
-
+#if 1
     InstallStaticRoutingTableAll ();
-#if 0
+#else
     Ipv4GlobalRoutingHelper globalRoutingHelper;
     Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 #endif
