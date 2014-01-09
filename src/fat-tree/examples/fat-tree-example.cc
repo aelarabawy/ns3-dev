@@ -23,6 +23,7 @@
  */
 
 #include "ns3/fat-tree-module.h"
+#include "ns3/hadoop-module.h"
 #include "ns3/applications-module.h"
 
 using namespace ns3;
@@ -45,6 +46,25 @@ main (int argc, char *argv[])
   FatTreeHelper fatTreeHelper;
   Ptr<FatTreeNetwork> benchMarkNetwork = fatTreeHelper.Install("BenchMark");
 
+  //Install a Hadoop NameNode on Pod0:Host0
+  string nodeName;
+  Ptr<Node> nameNodeHost = Names::Find<Node>(benchMarkNetwork->GetHostNodeName(0,0,nodeName));
+  if (!nameNodeHost) {
+      NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(0,0,nodeName));
+  }
+
+  HadoopHelper hadoop;
+  hadoop.InstallNameNode(nameNodeHost);
+  hadoop.SetNameNodeIpAddress (benchMarkNetwork->GetHostIpAddress(nameNodeHost));
+
+  //Install a Hadoop DataNode on Pod3:Host1
+  Ptr<Node> dataNodeHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(3,1,nodeName));
+  if (!dataNodeHost) {
+      NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(3,1,nodeName));
+  }
+  hadoop.InstallDataNode(dataNodeHost);
+
+
   //Enable tracing
   NS_LOG_LOGIC("Enable ASCII Tracing on all devices");
   AsciiTraceHelper asciiTraceHelper;
@@ -55,7 +75,6 @@ main (int argc, char *argv[])
   fatTreeHelper.EnablePcapAll("pcapTraceFile");  
 
   //Get the hosts for both client and server
-  string nodeName;
   Ptr<Node> clientHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(0,2,nodeName));
   if (!clientHost) {
       NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(0,2,nodeName));

@@ -25,6 +25,9 @@
 #define HADOOP_HELPER_H
 
 #include "ns3/hadoop.h"
+#include "ns3/hadoop-module.h"
+#include "ns3/core-module.h"
+#include "ns3/network-module.h"
 
 namespace ns3 {
 
@@ -36,14 +39,21 @@ HadoopHelper();
 virtual ~HadoopHelper();
 
 void InstallNameNode (Ptr<Node> node);
-Address GetNameNodeAddress (void);
+void SetNameNodeIpAddress (Ipv4Address addr);
 
-void InstallDataNode (Ptr<Node> node);
+
+Ptr<HadoopDataNode> InstallDataNode (Ptr<Node> node);
 ApplicationContainer InstallDataNodes (NodeContainer c);
 
+
+
 private:
+Ptr<HadoopNameNode> m_nameNode;
 Address m_nameNodeAddress;
+Ipv4Address  m_nameNodeIpAddress;
+
 ObjectFactory m_dataNodeFactory;
+ObjectFactory m_hdfsClientFactory;
 };
 
 }; //namespace ns3

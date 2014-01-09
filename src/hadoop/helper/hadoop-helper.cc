@@ -1,18 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-
-#include "hadoop-helper.h"
-
-namespace ns3 {
-
-/* ... */
-
-
-}
-
-#if 0
-/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2008 INRIA
+ * Copyright (c) 2013 Ahmed ElArabawy <aelarabawy.git@lasilka.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -27,20 +15,75 @@ namespace ns3 {
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
- * Author: Mathieu Lacage <mathieu.lacage@sophia.inria.fr>
  */
-#include "on-off-helper.h"
-#include "ns3/inet-socket-address.h"
-#include "ns3/packet-socket-address.h"
-#include "ns3/string.h"
-#include "ns3/data-rate.h"
-#include "ns3/uinteger.h"
-#include "ns3/names.h"
-#include "ns3/random-variable-stream.h"
-#include "ns3/onoff-application.h"
+ 
+ /*
+  * Author: Ahmed ElArabawy <aelarabawy.git@lasilka.com>
+ */
+
+#include "hadoop-helper.h"
+
+NS_LOG_COMPONENT_DEFINE ("HadoopHelper");
 
 namespace ns3 {
 
+HadoopHelper::HadoopHelper ():
+    m_nameNode (0) {
+    NS_LOG_FUNCTION (this);
+
+    m_dataNodeFactory.SetTypeId("ns3::HadoopDataNode");
+    m_hdfsClientFactory.SetTypeId("ns3::HadoopHdfsClient");
+}
+
+HadoopHelper::~HadoopHelper() {
+    NS_LOG_FUNCTION (this);
+}
+
+void HadoopHelper::InstallNameNode (Ptr<Node> node) {
+    NS_LOG_FUNCTION (this);
+
+    Ptr<HadoopNameNode> nameNode = Create<HadoopNameNode> ();
+    node->AddApplication (nameNode);
+
+    m_nameNode = nameNode;
+}
+
+
+void HadoopHelper::SetNameNodeIpAddress (Ipv4Address addr) {
+    NS_LOG_FUNCTION (this);
+    m_dataNodeFactory.SetAttribute  ("nameNodeAddress", Address(InetSocketAddress(addr, 8000)));
+    m_hdfsClientFactory.SetAttribute("nameNodeAddress", Address(InetSocketAddress(addr, 9000)));
+}
+
+
+Ptr<HadoopDataNode> HadoopHelper::InstallDataNode (Ptr<Node> node) {
+    NS_LOG_FUNCTION (this);
+
+    Ptr<HadoopDataNode> dataNode = m_dataNodeFactory.Create<HadoopDataNode> ();
+    node->AddApplication (dataNode);
+
+    return dataNode;
+}
+
+ApplicationContainer HadoopHelper::InstallDataNodes (NodeContainer c) {
+    NS_LOG_FUNCTION (this);
+
+    ApplicationContainer apps;
+    for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+    {
+        apps.Add (InstallDataNode (*i));
+    }
+
+    return apps;
+}
+
+
+};
+
+#if 0
+Address m_nameNodeAddress;
+ObjectFactory m_dataNodeFactory;
+}
 OnOffHelper::OnOffHelper (std::string protocol, Address address)
 {
   m_factory.SetTypeId ("ns3::OnOffApplication");
@@ -117,5 +160,4 @@ OnOffHelper::SetConstantRate (DataRate dataRate, uint32_t packetSize)
   m_factory.Set ("PacketSize", UintegerValue (packetSize));
 }
 
-} // namespace ns3
 #endif 
