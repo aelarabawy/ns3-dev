@@ -25,6 +25,7 @@
 
 #include "ns3/applications-module.h"
 #include "ns3/core-module.h"
+#include "ns3/internet-module.h"
 
 using namespace std;
 
@@ -41,8 +42,19 @@ public:
     virtual ~HadoopNameNode();
 
 private:
-    Ptr<Socket> m_socket2DataNodes;  //Socket connecting to Data Nodes
+    Ptr<Socket> m_socket2DataNodes;  //Socket listening to Data Nodes
+    Ptr<Socket> m_socket2HdfsClients; //Socket listening to HDFS Clients
     Ipv4Address m_ownIpAddress;
+
+    void StartApplication (void);
+    void StopApplication (void);
+
+    bool AcceptDataNodeConnection (Ptr<Socket> socket, const Address& addr);
+    void NewDataNodeConnectionCreated (Ptr<Socket> socket, const Address& addr);
+
+    bool AcceptHdfsClientConnection (Ptr<Socket> socket, const Address& addr);
+    void NewHdfsClientConnectionCreated (Ptr<Socket> socket, const Address& addr);
+
 };
 
 };

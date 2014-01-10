@@ -42,13 +42,20 @@ HadoopHelper::~HadoopHelper() {
 void HadoopHelper::InstallNameNode (Ptr<Node> node, Ipv4Address addr) {
     NS_LOG_FUNCTION (this);
 
-    Ptr<HadoopNameNode> nameNode = Create<HadoopNameNode> ();
-    nameNode->SetAttribute("IpAddress", addr);
+    Ptr<HadoopNameNode> nameNode = CreateObject<HadoopNameNode> ();
+    NS_LOG_LOGIC("Before");
+    nameNode->SetAttribute("IpAddress", Ipv4AddressValue(addr));
+    NS_LOG_LOGIC("After");
+    nameNode->SetStartTime(Seconds(1));
     node->AddApplication (nameNode);
 
     m_nameNode = nameNode;
-    m_dataNodeFactory.SetAttribute  ("nameNodeAddress", Address(InetSocketAddress(addr, PORT_NUM_DATA_NODES)));
-    m_hdfsClientFactory.SetAttribute("nameNodeAddress", Address(InetSocketAddress(addr, PORT_NUM_HDFS_CLIENTS)));
+
+    AddressValue addValDataNodes (InetSocketAddress(addr, 8000 ));
+    m_dataNodeFactory.Set ("nameNodeAddress", addValDataNodes);
+
+    AddressValue addValHdfsClients (InetSocketAddress (addr, 9000));
+    m_hdfsClientFactory.Set ("nameNodeAddress",addValHdfsClients);
 }
 
 

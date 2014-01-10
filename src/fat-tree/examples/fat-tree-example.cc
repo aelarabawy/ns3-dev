@@ -46,25 +46,6 @@ main (int argc, char *argv[])
   FatTreeHelper fatTreeHelper;
   Ptr<FatTreeNetwork> benchMarkNetwork = fatTreeHelper.Install("BenchMark");
 
-  //Install a Hadoop NameNode on Pod0:Host0
-  string nodeName;
-  Ptr<Node> nameNodeHost = Names::Find<Node>(benchMarkNetwork->GetHostNodeName(0,0,nodeName));
-  if (!nameNodeHost) {
-      NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(0,0,nodeName));
-  }
-
-  HadoopHelper hadoop;
-  Ipv4Address nameNodeAddress = benchMarkNetwork->GetHostIpAddress(nameNodeHost);
-  hadoop.InstallNameNode (nameNodeHost , nameNodeAddress);
-
-  //Install a Hadoop DataNode on Pod3:Host1
-  Ptr<Node> dataNodeHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(3,1,nodeName));
-  if (!dataNodeHost) {
-      NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(3,1,nodeName));
-  }
-  hadoop.InstallDataNode(dataNodeHost);
-
-
   //Enable tracing
   NS_LOG_LOGIC("Enable ASCII Tracing on all devices");
   AsciiTraceHelper asciiTraceHelper;
@@ -74,6 +55,7 @@ main (int argc, char *argv[])
   NS_LOG_LOGIC("Enable PCAP Tracing on all devices");
   fatTreeHelper.EnablePcapAll("pcapTraceFile");  
 
+  string nodeName;
   //Get the hosts for both client and server
   Ptr<Node> clientHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(0,2,nodeName));
   if (!clientHost) {

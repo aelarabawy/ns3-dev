@@ -31,7 +31,7 @@ namespace ns3 {
 
 NS_OBJECT_ENSURE_REGISTERED(HadoopNameNode);
 
-TypeId HadoopNameNode::GetTypeId() {
+TypeId HadoopNameNode::GetTypeId(void) {
     static TypeId tid = TypeId ("ns3::HadoopNameNode")
         .SetParent<Application> ()
         .AddConstructor<HadoopNameNode> ()
@@ -47,13 +47,84 @@ TypeId HadoopNameNode::GetTypeId() {
 }
 
 HadoopNameNode::HadoopNameNode():
-    m_socket2DataNodes(0)   {
+    m_socket2DataNodes(0),
+    m_socket2HdfsClients(0)  {
     NS_LOG_FUNCTION (this);
 }
 
 HadoopNameNode::~HadoopNameNode() {
     NS_LOG_FUNCTION (this);
 }
+
+/* Called at Application start */
+void HadoopNameNode::StartApplication (void) {
+    NS_LOG_FUNCTION (this);
+
+    // Create the socket listening to DataNodes Registration
+    if (!m_socket2DataNodes) {
+        m_socket2DataNodes = Socket::CreateSocket (GetNode(), TcpSocketFactory::GetTypeId());
+
+        Address ownAddress = Address(InetSocketAddress(m_ownIpAddress, 8000));
+        m_socket2DataNodes->Bind(ownAddress);
+
+        m_socket2DataNodes->Listen();
+
+        m_socket2DataNodes->SetAcceptCallback (
+            MakeCallback (&HadoopNameNode::AcceptDataNodeConnection, this ),
+            MakeCallback (&HadoopNameNode::NewDataNodeConnectionCreated, this) );
+
+    }
+
+    if (!m_socket2HdfsClients) {
+        m_socket2HdfsClients = Socket::CreateSocket (GetNode(), TcpSocketFactory::GetTypeId());
+
+        Address ownAddress = Address(InetSocketAddress(m_ownIpAddress, 9000));
+        m_socket2HdfsClients->Bind(ownAddress);
+
+        m_socket2HdfsClients->Listen();
+
+        m_socket2HdfsClients->SetAcceptCallback (
+            MakeCallback (&HadoopNameNode::AcceptHdfsClientConnection, this ),
+            MakeCallback (&HadoopNameNode::NewHdfsClientConnectionCreated, this) );
+
+    }
+    
+}
+
+/* Called at Application Stop*/
+void HadoopNameNode::StopApplication (void) {
+    NS_LOG_FUNCTION (this);
+  
+    if(m_socket2DataNodes) {
+        m_socket2DataNodes->Close ();
+    }
+}
+
+bool HadoopNameNode::AcceptDataNodeConnection (Ptr<Socket> socket, const Address& addr) {
+    NS_LOG_FUNCTION (this << socket << addr);
+
+    return true;
+}
+
+void HadoopNameNode::NewDataNodeConnectionCreated (Ptr<Socket> socket, const Address& addr) {
+    NS_LOG_FUNCTION (this << socket << addr);
+
+    return;
+}
+
+bool HadoopNameNode::AcceptHdfsClientConnection (Ptr<Socket> socket, const Address& addr) {
+    NS_LOG_FUNCTION (this << socket << addr);
+
+    return true;
+}
+
+void HadoopNameNode::NewHdfsClientConnectionCreated (Ptr<Socket> socket, const Address& addr) {
+    NS_LOG_FUNCTION (this << socket << addr);
+
+    return;
+}
+
+
 
 };
 
