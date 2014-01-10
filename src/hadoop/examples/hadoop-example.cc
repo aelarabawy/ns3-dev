@@ -29,7 +29,7 @@
 using namespace ns3;
 
 
-NS_LOG_COMPONENT_DEFINE ("FatTreeExample");
+NS_LOG_COMPONENT_DEFINE ("HadoopExample");
 
 int 
 main (int argc, char *argv[])
@@ -62,7 +62,9 @@ main (int argc, char *argv[])
   if (!dataNodeHost) {
       NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(3,1,nodeName));
   }
-  hadoop.InstallDataNode(dataNodeHost);
+  Ptr<HadoopDataNode> dataNodeApp = hadoop.InstallDataNode(dataNodeHost);
+  dataNodeApp->SetStartTime (Seconds(3));
+  dataNodeApp->SetStopTime  (Seconds(10));
 
 
   //Enable tracing
@@ -74,44 +76,7 @@ main (int argc, char *argv[])
   NS_LOG_LOGIC("Enable PCAP Tracing on all devices");
   fatTreeHelper.EnablePcapAll("pcapTraceFile");  
 
-  //Get the hosts for both client and server
-  Ptr<Node> clientHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(0,2,nodeName));
-  if (!clientHost) {
-      NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(0,2,nodeName));
-  }
   
-  Ptr<Node> serverHost = Names::Find <Node> (benchMarkNetwork->GetHostNodeName(3,2, nodeName));
-  if (!clientHost) {
-      NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(3,2,nodeName));
-  }
-  
-
-  //Install the Server Application in the serverHost
-  UdpEchoServerHelper echoServer (9);
-
-  ApplicationContainer serverApps = echoServer.Install (serverHost);
-  serverApps.Start (Seconds (1.0));
-  serverApps.Stop (Seconds (10.0));
-
-  //Install the Client Application in the clientHost
-  UdpEchoClientHelper echoClient (benchMarkNetwork->GetHostIpAddress(serverHost), 9);
-  //UdpEchoClientHelper echoClient (fatTreeHelper.GetHostIpAddress(3,2), 9);
-
-  echoClient.SetAttribute ("MaxPackets", UintegerValue (1));
-  echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.0)));
-  echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
-
-  ApplicationContainer clientApps = echoClient.Install (clientHost);
-  clientApps.Start (Seconds (2.0));
-  clientApps.Stop (Seconds (10.0));
-  
-  cout << "===========================================" << endl << "Server :";
-  benchMarkNetwork->GetHostIpAddress(3,2).Print(cout);
-  cout << endl << "Client: ";
-  benchMarkNetwork->GetHostIpAddress(0,2).Print(cout);
-  cout << endl << "===========================================" << endl;
-
-
   Simulator::Run ();
   Simulator::Destroy ();
   return 0;
