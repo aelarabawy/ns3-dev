@@ -38,6 +38,7 @@ public:
     virtual ~HadoopHdfsClient();
 
 private:
+    Address m_nameNodeAddress;
     Ptr<Socket> m_socket2NameNode;  //Socket connecting to Name Node
 };
 

@@ -35,6 +35,12 @@ TypeId HadoopHdfsClient::GetTypeId() {
     static TypeId tid = TypeId ("ns3::HadoopHdfsClient")
         .SetParent<Application> ()
         .AddConstructor<HadoopHdfsClient> ()
+        
+        .AddAttribute ("nameNodeAddress",
+                       "The address of the nameNode to connect to",
+                       AddressValue (),
+                       MakeAddressAccessor (&HadoopHdfsClient::m_nameNodeAddress),
+                       MakeAddressChecker ())
     ;
 
     return tid;

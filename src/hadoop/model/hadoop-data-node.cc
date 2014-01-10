@@ -35,6 +35,12 @@ TypeId HadoopDataNode::GetTypeId() {
     static TypeId tid = TypeId ("ns3::HadoopDataNode")
         .SetParent<Application> ()
         .AddConstructor<HadoopDataNode> ()
+
+        .AddAttribute ("nameNodeAddress",
+                       "The address of the nameNode to connect to",
+                       AddressValue (),
+                       MakeAddressAccessor (&HadoopDataNode::m_nameNodeAddress),
+                       MakeAddressChecker ())
     ;
 
     return tid;

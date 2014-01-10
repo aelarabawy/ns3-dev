@@ -54,8 +54,8 @@ main (int argc, char *argv[])
   }
 
   HadoopHelper hadoop;
-  hadoop.InstallNameNode(nameNodeHost);
-  hadoop.SetNameNodeIpAddress (benchMarkNetwork->GetHostIpAddress(nameNodeHost));
+  Ipv4Address nameNodeAddress = benchMarkNetwork->GetHostIpAddress(nameNodeHost);
+  hadoop.InstallNameNode (nameNodeHost , nameNodeAddress);
 
   //Install a Hadoop DataNode on Pod3:Host1
   Ptr<Node> dataNodeHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(3,1,nodeName));

@@ -38,9 +38,7 @@ public:
 HadoopHelper();
 virtual ~HadoopHelper();
 
-void InstallNameNode (Ptr<Node> node);
-void SetNameNodeIpAddress (Ipv4Address addr);
-
+void InstallNameNode (Ptr<Node> node, Ipv4Address addr);
 
 Ptr<HadoopDataNode> InstallDataNode (Ptr<Node> node);
 ApplicationContainer InstallDataNodes (NodeContainer c);
@@ -49,8 +47,6 @@ ApplicationContainer InstallDataNodes (NodeContainer c);
 
 private:
 Ptr<HadoopNameNode> m_nameNode;
-Address m_nameNodeAddress;
-Ipv4Address  m_nameNodeIpAddress;
 
 ObjectFactory m_dataNodeFactory;
 ObjectFactory m_hdfsClientFactory;

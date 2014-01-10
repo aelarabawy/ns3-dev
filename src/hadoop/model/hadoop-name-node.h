@@ -28,6 +28,8 @@
 
 using namespace std;
 
+#define PORT_NUM_DATA_NODES 8000;
+#define PORT_NUM_HDFS_CLIENTS 9000;
 
 namespace ns3 {
 
@@ -40,6 +42,7 @@ public:
 
 private:
     Ptr<Socket> m_socket2DataNodes;  //Socket connecting to Data Nodes
+    Ipv4Address m_ownIpAddress;
 };
 
 };

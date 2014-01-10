@@ -35,6 +35,12 @@ TypeId HadoopNameNode::GetTypeId() {
     static TypeId tid = TypeId ("ns3::HadoopNameNode")
         .SetParent<Application> ()
         .AddConstructor<HadoopNameNode> ()
+
+        .AddAttribute ("IpAddress", 
+                       "The IP address of the Name Node. ",
+                       Ipv4AddressValue ("255.255.255.255"),
+                       MakeIpv4AddressAccessor (&HadoopNameNode::m_ownIpAddress),
+                       MakeIpv4AddressChecker ())
     ;
 
     return tid;
@@ -53,7 +59,16 @@ HadoopNameNode::~HadoopNameNode() {
 
 
 #if 0
+    .AddAttribute ("IpAddress", 
+                   "The IP address to assign to the tap device, when in ConfigureLocal mode.  "
+                   "This address will override the discovered IP address of the simulated device.",
+                   Ipv4AddressValue ("255.255.255.255"),
+                   MakeIpv4AddressAccessor (&TapBridge::m_tapIp),
+                   MakeIpv4AddressChecker ())
 
+
+
+    nameNode->SetAttribute("Address", addr);
 TypeId
 OnOffApplication::GetTypeId (void)
 {
