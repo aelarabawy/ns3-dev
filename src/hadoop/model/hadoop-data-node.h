@@ -26,6 +26,7 @@
 #include "ns3/core-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/internet-module.h"
+#include "ns3/hadoop-module.h"
 
 using namespace std;
 
@@ -38,9 +39,16 @@ public:
     HadoopDataNode();
     virtual ~HadoopDataNode();
 
+    void SetLocation(uint32_t podNum, uint32_t rackNum, uint32_t hostNum);
+
 private:
+    uint32_t m_podNum;
+    uint32_t m_rackNum;
+    uint32_t m_hostNum;
+
     Ptr<Socket> m_socket2NameNode;  //Socket connecting to Name Node
     Address m_nameNodeAddress; //Address for Name node
+    
 
     // inherited from Application base class.
     virtual void StartApplication (void);    // Called at time specified by Start

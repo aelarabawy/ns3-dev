@@ -47,12 +47,23 @@ TypeId HadoopDataNode::GetTypeId() {
 }
 
 HadoopDataNode::HadoopDataNode():
+    m_podNum (0),
+    m_rackNum (0),
+    m_hostNum (0),
     m_socket2NameNode(0)   {
     NS_LOG_FUNCTION (this);
 }
 
 HadoopDataNode::~HadoopDataNode() {
     NS_LOG_FUNCTION (this);
+}
+
+void HadoopDataNode::SetLocation(uint32_t podNum, uint32_t rackNum, uint32_t hostNum) {
+    NS_LOG_FUNCTION (this << podNum << rackNum << hostNum);
+
+    m_podNum = podNum;
+    m_rackNum = rackNum;
+    m_hostNum = hostNum;
 }
 
 void HadoopDataNode::StartApplication() {
@@ -63,10 +74,12 @@ void HadoopDataNode::StartApplication() {
         m_socket2NameNode = Socket::CreateSocket (GetNode (), TcpSocketFactory::GetTypeId() );
         m_socket2NameNode->Bind();
         m_socket2NameNode->Connect(m_nameNodeAddress);
-
+     
         m_socket2NameNode->SetConnectCallback (
             MakeCallback (&HadoopDataNode::NameNodeConnectionSucceeded, this),
             MakeCallback (&HadoopDataNode::NameNodeConnectionFailed, this));
+
+        NS_LOG_LOGIC("DataNode Connecting Socket is: " << m_socket2NameNode);
     }
 }
 
@@ -81,6 +94,21 @@ void HadoopDataNode::StopApplication() {
 
 void HadoopDataNode::NameNodeConnectionSucceeded (Ptr<Socket> socket) {
     NS_LOG_FUNCTION (this << socket);
+
+    //Now We need to register with the Name Node
+    Ptr<Packet> pkt = Create<Packet> ();
+
+    RegisterRequestMsg regReq;
+    regReq.SetPodNum (m_podNum);
+    regReq.SetRackNum (m_rackNum);
+    regReq.SetHostNum (m_hostNum);
+    pkt->AddHeader(regReq);
+
+    NameNodeDataNodeProtocolHeader header;
+    header.SetMsgType(NameNodeDataNodeProtocolHeader::DATA_NODE_REGISTER_REQ);
+    pkt->AddHeader(header);
+
+    socket->Send(pkt);
 }
 
 void HadoopDataNode::NameNodeConnectionFailed (Ptr<Socket> socket) {

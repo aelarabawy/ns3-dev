@@ -27,8 +27,7 @@ NS_LOG_COMPONENT_DEFINE ("HadoopHelper");
 
 namespace ns3 {
 
-HadoopHelper::HadoopHelper ():
-    m_nameNode (0) {
+HadoopHelper::HadoopHelper () {
     NS_LOG_FUNCTION (this);
 
     m_dataNodeFactory.SetTypeId("ns3::HadoopDataNode");
@@ -49,8 +48,6 @@ void HadoopHelper::InstallNameNode (Ptr<Node> node, Ipv4Address addr) {
     nameNode->SetStartTime(Seconds(1));
     node->AddApplication (nameNode);
 
-    m_nameNode = nameNode;
-
     AddressValue addValDataNodes (InetSocketAddress(addr, 8000 ));
     m_dataNodeFactory.Set ("nameNodeAddress", addValDataNodes);
 
@@ -59,25 +56,14 @@ void HadoopHelper::InstallNameNode (Ptr<Node> node, Ipv4Address addr) {
 }
 
 
-Ptr<HadoopDataNode> HadoopHelper::InstallDataNode (Ptr<Node> node) {
+Ptr<HadoopDataNode> HadoopHelper::InstallDataNode (Ptr<Node> node, uint32_t podNum, uint32_t rackNum, uint32_t hostNum) {
     NS_LOG_FUNCTION (this);
 
     Ptr<HadoopDataNode> dataNode = m_dataNodeFactory.Create<HadoopDataNode> ();
+    dataNode->SetLocation(podNum, rackNum, hostNum);
     node->AddApplication (dataNode);
 
     return dataNode;
-}
-
-ApplicationContainer HadoopHelper::InstallDataNodes (NodeContainer c) {
-    NS_LOG_FUNCTION (this);
-
-    ApplicationContainer apps;
-    for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
-    {
-        apps.Add (InstallDataNode (*i));
-    }
-
-    return apps;
 }
 
 

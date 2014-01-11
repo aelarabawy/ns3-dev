@@ -26,6 +26,7 @@
 #include "ns3/applications-module.h"
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
+#include "ns3/hadoop-module.h"
 
 using namespace std;
 
@@ -55,6 +56,7 @@ private:
     bool AcceptHdfsClientConnection (Ptr<Socket> socket, const Address& addr);
     void NewHdfsClientConnectionCreated (Ptr<Socket> socket, const Address& addr);
 
+    void RecvFromDataNode (Ptr<Socket> socket); 
 };
 
 };

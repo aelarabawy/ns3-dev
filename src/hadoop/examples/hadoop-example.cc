@@ -62,7 +62,7 @@ main (int argc, char *argv[])
   if (!dataNodeHost) {
       NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(3,1,nodeName));
   }
-  Ptr<HadoopDataNode> dataNodeApp = hadoop.InstallDataNode(dataNodeHost);
+  Ptr<HadoopDataNode> dataNodeApp = hadoop.InstallDataNode(dataNodeHost,3,0,1);
   dataNodeApp->SetStartTime (Seconds(3));
   dataNodeApp->SetStopTime  (Seconds(10));
 

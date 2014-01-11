@@ -13,6 +13,8 @@ def build(bld):
         'model/hadoop-data-node.cc',
         'model/hadoop-name-node.cc',
         'model/hadoop-hdfs-client.cc',
+        'model/hadoop-namenode-datanode-protocol.cc',
+        'model/hadoop-namenode-hdfsclient-protocol.cc',
         'helper/hadoop-helper.cc',
         ]
 
@@ -28,6 +30,8 @@ def build(bld):
         'model/hadoop-data-node.h',
         'model/hadoop-name-node.h',
         'model/hadoop-hdfs-client.h',
+        'model/hadoop-namenode-datanode-protocol.h',
+        'model/hadoop-namenode-hdfsclient-protocol.h',
         'helper/hadoop-helper.h',
         ]
 

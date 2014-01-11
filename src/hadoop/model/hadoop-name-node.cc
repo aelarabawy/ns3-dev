@@ -73,6 +73,9 @@ void HadoopNameNode::StartApplication (void) {
             MakeCallback (&HadoopNameNode::AcceptDataNodeConnection, this ),
             MakeCallback (&HadoopNameNode::NewDataNodeConnectionCreated, this) );
 
+
+        NS_LOG_LOGIC("NameNode Listening socket to DataNodes is: " << m_socket2DataNodes);
+
     }
 
     if (!m_socket2HdfsClients) {
@@ -103,13 +106,49 @@ void HadoopNameNode::StopApplication (void) {
 bool HadoopNameNode::AcceptDataNodeConnection (Ptr<Socket> socket, const Address& addr) {
     NS_LOG_FUNCTION (this << socket << addr);
 
+    //Note that this socket is the listening socket which accepted the new connection
+
     return true;
 }
 
 void HadoopNameNode::NewDataNodeConnectionCreated (Ptr<Socket> socket, const Address& addr) {
     NS_LOG_FUNCTION (this << socket << addr);
 
+    //Note that the socket passed to this function is the new socket for the new connction
+    
+    //Wait for messages from the DataNode
+    socket->SetRecvCallback(MakeCallback (&HadoopNameNode::RecvFromDataNode, this));
+
     return;
+}
+
+void HadoopNameNode::RecvFromDataNode (Ptr<Socket> socket) {
+    NS_LOG_FUNCTION (this << socket);
+
+    Ptr<Packet> p = socket->Recv();
+
+    NameNodeDataNodeProtocolHeader header;
+    p->RemoveHeader(header);
+
+    switch (header.GetMsgType()) {
+        case NameNodeDataNodeProtocolHeader::DATA_NODE_REGISTER_REQ: {
+            NS_LOG_LOGIC("Recieved DATA_NODE_REGISTER_REQUEST message from a Data Node");
+
+            RegisterRequestMsg msg;
+            p->RemoveHeader(msg);
+
+            NS_LOG_LOGIC ("Registering Node Pod:Rack:Host = " << msg.GetPodNum() << ":" << msg.GetRackNum() << ":" << msg.GetHostNum());
+        }
+        break;
+
+        case NameNodeDataNodeProtocolHeader::DATA_NODE_REGISTER_REP: {
+            NS_LOG_LOGIC("Recieved DATA_NODE_REGISTER_REPLY message from a Data Node");
+        }
+        break;
+
+        default:
+            NS_LOG_LOGIC("Recieved UnIdentified Message From a Data Node.... " << header.GetMsgType());
+    }
 }
 
 bool HadoopNameNode::AcceptHdfsClientConnection (Ptr<Socket> socket, const Address& addr) {

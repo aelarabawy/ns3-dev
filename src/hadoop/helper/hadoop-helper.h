@@ -31,6 +31,8 @@
 
 namespace ns3 {
 
+class HadoopDataNode;
+
 class HadoopHelper {
 
 public:
@@ -40,14 +42,9 @@ virtual ~HadoopHelper();
 
 void InstallNameNode (Ptr<Node> node, Ipv4Address addr);
 
-Ptr<HadoopDataNode> InstallDataNode (Ptr<Node> node);
-ApplicationContainer InstallDataNodes (NodeContainer c);
-
-
+Ptr<HadoopDataNode> InstallDataNode (Ptr<Node> node, uint32_t podNum, uint32_t rackNum, uint32_t hostNum);
 
 private:
-Ptr<HadoopNameNode> m_nameNode;
-
 ObjectFactory m_dataNodeFactory;
 ObjectFactory m_hdfsClientFactory;
 };
