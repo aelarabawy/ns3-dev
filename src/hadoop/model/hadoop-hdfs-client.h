@@ -25,10 +25,16 @@
 
 #include "ns3/core-module.h"
 #include "ns3/applications-module.h"
+#include "ns3/internet-module.h"
+#include "ns3/hadoop-module.h"
 
 using namespace std;
 
 namespace ns3 {
+
+#define MAX_PER_CLIENT_FILE_COUNT  10
+#define MAX_PER_CLIENT_BLOCK_COUNT 16
+
 
 class HadoopHdfsClient : public Application {
 
@@ -37,90 +43,129 @@ public:
     HadoopHdfsClient();
     virtual ~HadoopHdfsClient();
 
+    void SetLocation(uint32_t podNum, uint32_t rackNum, uint32_t hostNum);
+    void AddFile (string fileName, Time scheduledTime);
+
 private:
-    Address m_nameNodeAddress;
+
+    class FileInfo {
+    public:
+        FileInfo () {
+            m_state = FileInfo::FILE_STATE_IDLE;
+            m_fileName = "";
+            m_fileId = 0;
+            m_startTime = Seconds(0);
+            m_completionTime = Seconds (0);
+        }
+
+
+        ~FileInfo () {
+        }
+
+        enum FileState {
+            FILE_STATE_IDLE = 0,
+            FILE_STATE_SCHEDULED = 1,
+            FILE_STATE_REGISTRATION_REQUESTED = 2,
+            FILE_STATE_REGISTERED = 3,
+            FILE_STATE_COMPLETED = 4
+        };
+
+        FileState m_state;
+    
+        string m_fileName;
+        uint32_t m_fileId;
+        Time m_startTime;
+        Time m_completionTime;
+    };
+
+    class BlockInfo {
+    public:
+
+        BlockInfo() {
+            m_state = BlockInfo::BLOCK_STATE_IDLE;
+            m_blockId = 0;
+            m_blockSize = 0;
+            m_fileInfo = NULL;
+            m_socket = NULL;
+
+            m_dataTransfered = 0;
+            m_pipelineLen = 0;
+
+            m_totalPacketCount = 0;
+            m_packetSentCount = 0;
+            m_packetAckedCount = 0;
+        }
+
+        ~BlockInfo() {
+        }
+
+        enum BlockState {
+            BLOCK_STATE_IDLE = 0,
+            BLOCK_STATE_REGISTRATION_REQUESTED = 1,
+            BLOCK_STATE_REGISTERED = 2,
+            BLOCK_STATE_PIPELINE_INITIATED = 3,
+            BLOCK_STATE_PIPELINE_ESTABLISHED = 4,
+            BLOCK_STATE_TRANSFER_IN_PROGRESS = 5,
+            BLOCK_STATE_TRANSFER_COMPLETED = 6
+        };
+
+        BlockState m_state;
+        uint32_t m_blockId;
+        uint32_t m_blockSize;
+        FileInfo*  m_fileInfo;
+        Ptr<Socket> m_socket;
+
+        uint32_t m_dataTransfered;
+        uint32_t m_pipelineLen;
+        Ipv4Address m_pipeline [MAX_PIPELINE_LEN];
+
+        uint32_t m_totalPacketCount;
+        uint32_t m_packetSentCount;
+        uint32_t m_packetAckedCount;
+    };
+
+
+    uint32_t m_podNum;
+    uint32_t m_rackNum;
+    uint32_t m_hostNum;
+
     Ptr<Socket> m_socket2NameNode;  //Socket connecting to Name Node
+    Address m_nameNodeAddress;
+
+    Ipv4Address m_ownAddress;
+  
+    uint32_t m_fileCount;
+    FileInfo m_files [MAX_PER_CLIENT_FILE_COUNT];
+
+    uint32_t m_blockCount;
+    BlockInfo m_blocks [MAX_PER_CLIENT_BLOCK_COUNT];
+
+    // inherited from Application base class.
+    virtual void StartApplication (void);    // Called at time specified by Start
+    virtual void StopApplication  (void);    // Called at time specified by Stop
+
+    void RegisterFileWithNameNode(void);
+
+    void NameNodeConnectionSucceeded (Ptr<Socket> socket);
+    void NameNodeConnectionFailed (Ptr<Socket> socket);
+    void RecvFromNameNode (Ptr<Socket> socket); 
+
+    void PipelineConnectionSucceeded (Ptr<Socket> socket);
+    void PipelineConnectionFailed (Ptr<Socket> socket); 
+    void RecvFromPipeline (Ptr<Socket> socket); 
+
+
+    Ptr<Socket> ConnectToDataNode (Ipv4Address dataNodeAddress);
+
+    void SendFileCreateReqMsg (Ptr<Socket> socket, string fileName);
+    void SendBlockAddReqMsg (Ptr<Socket> socket, uint32_t fileId);
+    void SendPipelineCreateReqMsg (Ptr<Socket> socket, BlockInfo & block);
+    void SendBlockComplete (Ptr<Socket> socket, uint32_t blockId);
+
+    void TransferData (Ptr<Socket> socket, BlockInfo & block);
 };
 
 };
 
 #endif //HADOOP_HDFS_CLIENT_H
 
-
-
-#if 0
-
-public:
-
-  /**
-   * \param maxBytes the total number of bytes to send
-   *
-   * Set the total number of bytes to send. Once these bytes are sent, no packet 
-   * is sent again, even in on state. The value zero means that there is no 
-   * limit.
-   */
-  void SetMaxBytes (uint32_t maxBytes);
-
-  /**
-   * \return pointer to associated socket
-   */
-  Ptr<Socket> GetSocket (void) const;
-
- /**
-  * Assign a fixed random variable stream number to the random variables
-  * used by this model.  Return the number of streams (possibly zero) that
-  * have been assigned.
-  *
-  * \param stream first stream index to use
-  * \return the number of stream indices assigned by this model
-  */
-  int64_t AssignStreams (int64_t stream);
-
-protected:
-  virtual void DoDispose (void);
-private:
-  // inherited from Application base class.
-  virtual void StartApplication (void);    // Called at time specified by Start
-  virtual void StopApplication (void);     // Called at time specified by Stop
-
-  //helpers
-  void CancelEvents ();
-
-  void Construct (Ptr<Node> n,
-                  const Address &remote,
-                  std::string tid,
-                  const RandomVariable& ontime,
-                  const RandomVariable& offtime,
-                  uint32_t size);
-
-
-  // Event handlers
-  void StartSending ();
-  void StopSending ();
-  void SendPacket ();
-
-  Ptr<Socket>     m_socket;       // Associated socket
-  Address         m_peer;         // Peer address
-  bool            m_connected;    // True if connected
-  Ptr<RandomVariableStream>  m_onTime;       // rng for On Time
-  Ptr<RandomVariableStream>  m_offTime;      // rng for Off Time
-  DataRate        m_cbrRate;      // Rate that data is generated
-  uint32_t        m_pktSize;      // Size of packets
-  uint32_t        m_residualBits; // Number of generated, but not sent, bits
-  Time            m_lastStartTime; // Time last packet sent
-  uint32_t        m_maxBytes;     // Limit total number of bytes sent
-  uint32_t        m_totBytes;     // Total bytes sent so far
-  EventId         m_startStopEvent;     // Event id for next start or stop event
-  EventId         m_sendEvent;    // Eventid of pending "send packet" event
-  bool            m_sending;      // True if currently in sending state
-  TypeId          m_tid;
-  TracedCallback<Ptr<const Packet> > m_txTrace;
-
-private:
-  void ScheduleNextTx ();
-  void ScheduleStartEvent ();
-  void ScheduleStopEvent ();
-  void ConnectionSucceeded (Ptr<Socket> socket);
-  void ConnectionFailed (Ptr<Socket> socket);
-
-#endif

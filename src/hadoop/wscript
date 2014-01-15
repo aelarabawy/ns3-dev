@@ -15,6 +15,7 @@ def build(bld):
         'model/hadoop-hdfs-client.cc',
         'model/hadoop-namenode-datanode-protocol.cc',
         'model/hadoop-namenode-hdfsclient-protocol.cc',
+        'model/hadoop-hdfsclient-datanode-protocol.cc',
         'helper/hadoop-helper.cc',
         ]
 
@@ -27,11 +28,13 @@ def build(bld):
     headers.module = 'hadoop'
     headers.source = [
         'model/hadoop.h',
+        'model/hadoop-common.h',
         'model/hadoop-data-node.h',
         'model/hadoop-name-node.h',
         'model/hadoop-hdfs-client.h',
         'model/hadoop-namenode-datanode-protocol.h',
         'model/hadoop-namenode-hdfsclient-protocol.h',
+        'model/hadoop-hdfsclient-datanode-protocol.h',
         'helper/hadoop-helper.h',
         ]
 

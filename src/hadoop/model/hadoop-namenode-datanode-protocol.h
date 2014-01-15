@@ -69,6 +69,9 @@ public:
     void SetHostNum (uint32_t hostNum);
     uint32_t GetHostNum (void);
 
+    void SetIpAddress (Ipv4Address addr);
+    Ipv4Address GetIpAddress (void);
+
     TypeId GetInstanceTypeId (void) const;
     virtual uint32_t GetSerializedSize (void) const;
     virtual void Serialize (Buffer::Iterator start) const;
@@ -79,6 +82,7 @@ private:
     uint32_t m_podNum;
     uint32_t m_rackNum;
     uint32_t m_hostNum;
+    Ipv4Address m_ipAddress;
 };
 
 class RegisterReplyMsg: public Header {
@@ -100,10 +104,7 @@ private:
     uint32_t m_resultCode;
 };
 
-
-
 }; //namespace ns3
 
 #endif /* HADOOP_NAME_NODE_DATA_NODE_PROTOCOL */
-
 

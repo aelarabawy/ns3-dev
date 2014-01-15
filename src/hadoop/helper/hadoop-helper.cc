@@ -66,6 +66,15 @@ Ptr<HadoopDataNode> HadoopHelper::InstallDataNode (Ptr<Node> node, uint32_t podN
     return dataNode;
 }
 
+Ptr<HadoopHdfsClient> HadoopHelper::InstallHdfsClient (Ptr<Node> node, uint32_t podNum, uint32_t rackNum, uint32_t hostNum) {
+    NS_LOG_FUNCTION (this);
+
+    Ptr<HadoopHdfsClient> hdfsClient = m_hdfsClientFactory.Create<HadoopHdfsClient> ();
+    hdfsClient->SetLocation (podNum, rackNum, hostNum);
+    node->AddApplication (hdfsClient);
+
+    return hdfsClient;
+}
 
 };
 

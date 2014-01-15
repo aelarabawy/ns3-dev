@@ -57,14 +57,45 @@ main (int argc, char *argv[])
   Ipv4Address nameNodeAddress = benchMarkNetwork->GetHostIpAddress(nameNodeHost);
   hadoop.InstallNameNode (nameNodeHost , nameNodeAddress);
 
-  //Install a Hadoop DataNode on Pod3:Host1
-  Ptr<Node> dataNodeHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(3,1,nodeName));
+  Ptr<Node> dataNodeHost;
+  Ptr<HadoopDataNode> dataNodeApp;
+
+  //Install a Hadoop DataNode on Pod1:Host1
+  dataNodeHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(1,1,nodeName));
+  if (!dataNodeHost) {
+      NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(1,1,nodeName));
+  }
+  dataNodeApp = hadoop.InstallDataNode(dataNodeHost,1,0,1);
+  dataNodeApp->SetStartTime (Seconds(3));
+  dataNodeApp->SetStopTime  (Seconds(10));
+
+   //Install a Hadoop DataNode on Pod3:Host0
+  dataNodeHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(3,0,nodeName));
+  if (!dataNodeHost) {
+      NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(3,0,nodeName));
+  }
+  dataNodeApp = hadoop.InstallDataNode(dataNodeHost,3,0,0);
+  dataNodeApp->SetStartTime (Seconds(3.1));
+  dataNodeApp->SetStopTime  (Seconds(10));
+
+ //Install a Hadoop DataNode on Pod3:Host1
+  dataNodeHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(3,1,nodeName));
   if (!dataNodeHost) {
       NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(3,1,nodeName));
   }
-  Ptr<HadoopDataNode> dataNodeApp = hadoop.InstallDataNode(dataNodeHost,3,0,1);
-  dataNodeApp->SetStartTime (Seconds(3));
+  dataNodeApp = hadoop.InstallDataNode(dataNodeHost,3,0,1);
+  dataNodeApp->SetStartTime (Seconds(3.2));
   dataNodeApp->SetStopTime  (Seconds(10));
+
+  //Install a Hadoop HDFS Client on Pod0:Host1
+  Ptr<Node> hdfsClientHost = Names::Find<Node> (benchMarkNetwork->GetHostNodeName(0,1,nodeName));
+  if (!hdfsClientHost) {
+      NS_LOG_ERROR ("Can not find a node with the name" + benchMarkNetwork->GetHostNodeName(0,1,nodeName));
+  }
+  Ptr<HadoopHdfsClient> hdfsClientApp = hadoop.InstallHdfsClient(hdfsClientHost,0,0,1);
+  hdfsClientApp->AddFile("my-data-file.dat",Seconds (3));
+  hdfsClientApp->SetStartTime (Seconds(4));
+  hdfsClientApp->SetStopTime  (Seconds(10));
 
 
   //Enable tracing

@@ -21,12 +21,11 @@
   * Author: Ahmed ElArabawy <aelarabawy.git@lasilka.com>
  */
 
-#ifndef HADOOP_NAME_NODE_HDFS_CLIENT_PROTOCOL
-#define HADOOP_NAME_NODE_HDFS_CLIENT_PROTOCOL
+#ifndef HADOOP_HDFS_CLIENT_DATA_NODE_PROTOCOL
+#define HADOOP_HDFS_CLIENT_DATA_NODE_PROTOCOL
 
 #include <string>
 
-#include "hadoop-common.h"
 #include "ns3/hadoop-module.h"
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
@@ -35,19 +34,16 @@ using namespace std;
 
 namespace ns3 {
 
-class NameNodeHdfsClientProtocolHeader : public Header {
+class HdfsClientDataNodeProtocolHeader : public Header {
 public:
     enum {
-        HDFS_CLIENT_FILE_CREATE_REQ = 0,
-        HDFS_CLIENT_FILE_CREATE_REP = 1,
-        HDFS_CLIENT_FILE_BLOCK_ADD_REQ = 2,
-        HDFS_CLIENT_FILE_BLOCK_ADD_REP = 3,
-        HDFS_CLIENT_BLOCK_COMPLETE = 4
+        HDFS_CLIENT_PIPELINE_CREATE_REQ = 0,
+        HDFS_CLIENT_PIPELINE_CREATE_REP = 1,
+        HDFS_CLIENT_PACKET_ACK = 2
     };
 
-
-    NameNodeHdfsClientProtocolHeader();
-    virtual ~NameNodeHdfsClientProtocolHeader();
+    HdfsClientDataNodeProtocolHeader();
+    virtual ~HdfsClientDataNodeProtocolHeader();
     static TypeId GetTypeId (void);
 
     void SetMsgType (uint32_t msgType);
@@ -63,88 +59,14 @@ private:
     uint32_t m_msgType;
 };
 
-class HdfsClientFileCreateReqMsg: public Header {
+class HdfsClientPipelineCreateReqMsg: public Header {
 public:
-    HdfsClientFileCreateReqMsg();
-    virtual ~HdfsClientFileCreateReqMsg();
+    HdfsClientPipelineCreateReqMsg();
+    virtual ~HdfsClientPipelineCreateReqMsg();
     static TypeId GetTypeId (void);
-
-    void SetFileName (string fileName);
-    string GetFileName (void);
-
-    TypeId GetInstanceTypeId (void) const;
-    virtual uint32_t GetSerializedSize (void) const;
-    virtual void Serialize (Buffer::Iterator start) const;
-    virtual uint32_t Deserialize (Buffer::Iterator start);
-    virtual void Print (std::ostream &os) const; 
-
-private:
-    string m_fileName;
-};
-
-class HdfsClientFileCreateRepMsg: public Header {
-public:
-    HdfsClientFileCreateRepMsg();
-    virtual ~HdfsClientFileCreateRepMsg();
-    static TypeId GetTypeId (void);
-
-    void SetResultCode (uint32_t resultCode);
-    uint32_t GetResultCode (void);
-
-    void SetFileId (uint32_t fileId);
-    uint32_t GetFileId (void);
-
-    void SetFileName (string fileName);
-    string GetFileName (void);
-
-    TypeId GetInstanceTypeId (void) const;
-    virtual uint32_t GetSerializedSize (void) const;
-    virtual void Serialize (Buffer::Iterator start) const;
-    virtual uint32_t Deserialize (Buffer::Iterator start);
-    virtual void Print (std::ostream &os) const; 
-
-private:
-    uint32_t m_resultCode;
-    uint32_t m_fileId;
-    string m_fileName;
-};
-
-class HdfsClientFileBlockAddReqMsg: public Header {
-public:
-    HdfsClientFileBlockAddReqMsg();
-    virtual ~HdfsClientFileBlockAddReqMsg();
-    static TypeId GetTypeId (void);
-
-    void SetFileId (uint32_t fileId);
-    uint32_t GetFileId (void);
-
-    TypeId GetInstanceTypeId (void) const;
-    virtual uint32_t GetSerializedSize (void) const;
-    virtual void Serialize (Buffer::Iterator start) const;
-    virtual uint32_t Deserialize (Buffer::Iterator start);
-    virtual void Print (std::ostream &os) const; 
-
-private:
-    uint32_t m_fileId;
-};
-
-class HdfsClientFileBlockAddRepMsg: public Header {
-public:
-    HdfsClientFileBlockAddRepMsg();
-    virtual ~HdfsClientFileBlockAddRepMsg();
-    static TypeId GetTypeId (void);
-
-    void SetResultCode (uint32_t resultCode);
-    uint32_t GetResultCode (void);
-
-    void SetFileId (uint32_t fileId);
-    uint32_t GetFileId (void);
 
     void SetBlockId (uint32_t blockId);
     uint32_t GetBlockId (void);
-
-    void SetBlockSize (uint32_t blockSize);
-    uint32_t GetBlockSize (void);
 
     void SetPipelineLen (uint32_t pipelineLen);
     uint32_t GetPipelineLen (void);
@@ -152,6 +74,7 @@ public:
     void SetPipeline (Ipv4Address address, uint8_t order);
     Ipv4Address GetPipeline (uint8_t order);
 
+
     TypeId GetInstanceTypeId (void) const;
     virtual uint32_t GetSerializedSize (void) const;
     virtual void Serialize (Buffer::Iterator start) const;
@@ -159,18 +82,15 @@ public:
     virtual void Print (std::ostream &os) const; 
 
 private:
-    uint32_t m_resultCode;
-    uint32_t m_fileId;
     uint32_t m_blockId;
-    uint32_t m_blockSize;
     uint32_t m_pipelineLen;
     Ipv4Address m_pipeline [MAX_PIPELINE_LEN];
 };
 
-class HdfsClientBlockCompleteMsg: public Header {
+class HdfsClientPipelineCreateRepMsg: public Header {
 public:
-    HdfsClientBlockCompleteMsg();
-    virtual ~HdfsClientBlockCompleteMsg();
+    HdfsClientPipelineCreateRepMsg();
+    virtual ~HdfsClientPipelineCreateRepMsg();
     static TypeId GetTypeId (void);
 
     void SetResultCode (uint32_t resultCode);
@@ -191,7 +111,35 @@ private:
 };
 
 
+class HdfsClientPacketAckMsg: public Header {
+public:
+    HdfsClientPacketAckMsg();
+    virtual ~HdfsClientPacketAckMsg();
+    static TypeId GetTypeId (void);
+
+    void SetResultCode (uint32_t resultCode);
+    uint32_t GetResultCode (void);
+
+    void SetBlockId (uint32_t blockId);
+    uint32_t GetBlockId (void);
+
+    void SetPacketId (uint32_t packetId);
+    uint32_t GetPacketId (void);
+
+    TypeId GetInstanceTypeId (void) const;
+    virtual uint32_t GetSerializedSize (void) const;
+    virtual void Serialize (Buffer::Iterator start) const;
+    virtual uint32_t Deserialize (Buffer::Iterator start);
+    virtual void Print (std::ostream &os) const; 
+
+private:
+    uint32_t m_resultCode;
+    uint32_t m_blockId;
+    uint32_t m_packetId;
+};
+
 }; //namespace ns3
 
-#endif /* HADOOP_NAME_NODE_HDFS_CLIENT_PROTOCOL */
+#endif /* HADOOP_HDFS_CLIENT_DATA_NODE_PROTOCOL */
+
 

@@ -56,7 +56,7 @@ private:
 
     void NameNodeConnectionSucceeded (Ptr<Socket> socket);
     void NameNodeConnectionFailed (Ptr<Socket> socket);
-
+    void RecvFromNameNode (Ptr<Socket> socket); 
 };
 
 };

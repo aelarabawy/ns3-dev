@@ -79,9 +79,38 @@ void HadoopDataNode::StartApplication() {
             MakeCallback (&HadoopDataNode::NameNodeConnectionSucceeded, this),
             MakeCallback (&HadoopDataNode::NameNodeConnectionFailed, this));
 
+
+        //Set the callback for reception
+        m_socket2NameNode->SetRecvCallback(MakeCallback (&HadoopDataNode::RecvFromNameNode, this));
+
         NS_LOG_LOGIC("DataNode Connecting Socket is: " << m_socket2NameNode);
     }
 }
+
+void HadoopDataNode::RecvFromNameNode (Ptr<Socket> socket) {
+    NS_LOG_FUNCTION (this << socket);
+
+    Ptr<Packet> p = socket->Recv();
+
+    NameNodeDataNodeProtocolHeader header;
+    p->RemoveHeader(header);
+
+    switch (header.GetMsgType()) {
+        case NameNodeDataNodeProtocolHeader::DATA_NODE_REGISTER_REP: {
+            NS_LOG_LOGIC("Recieved DATA_NODE_REGISTER_REPLY message from the Name Node");
+
+            RegisterReplyMsg repMsg;
+            p->RemoveHeader(repMsg);
+
+            NS_LOG_LOGIC ("Receiving result code " << repMsg.GetResultCode());
+        }
+        break;
+
+        default:
+            NS_LOG_LOGIC("Recieved UnIdentified Message From a Data Node.... " << header.GetMsgType());
+    }
+}
+
 
 void HadoopDataNode::StopApplication() {
     NS_LOG_FUNCTION (this);
@@ -96,18 +125,34 @@ void HadoopDataNode::NameNodeConnectionSucceeded (Ptr<Socket> socket) {
     NS_LOG_FUNCTION (this << socket);
 
     //Now We need to register with the Name Node
+
+    NS_LOG_LOGIC ("Preparing Data Node registration Message");
     Ptr<Packet> pkt = Create<Packet> ();
 
     RegisterRequestMsg regReq;
     regReq.SetPodNum (m_podNum);
     regReq.SetRackNum (m_rackNum);
     regReq.SetHostNum (m_hostNum);
+ 
+    NS_LOG_LOGIC ("1"); 
+    Ptr<Node> node = GetNode();
+    NS_LOG_LOGIC ("2"); 
+    Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+    NS_LOG_LOGIC ("3"); 
+    int32_t interface = ipv4->GetInterfaceForDevice(node->GetDevice(0));
+    NS_LOG_LOGIC ("4: Interface = " << interface); 
+    Ipv4Address address = ipv4->GetAddress(interface,0).GetLocal();
+    NS_LOG_LOGIC ("5"); 
+    NS_LOG_LOGIC ("### Data Node IP Address is " << address.Get());
+    regReq.SetIpAddress (address);
+
     pkt->AddHeader(regReq);
 
     NameNodeDataNodeProtocolHeader header;
     header.SetMsgType(NameNodeDataNodeProtocolHeader::DATA_NODE_REGISTER_REQ);
     pkt->AddHeader(header);
 
+    NS_LOG_LOGIC ("Sending Data Node registration Message");
     socket->Send(pkt);
 }
 

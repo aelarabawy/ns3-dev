@@ -78,6 +78,7 @@ void HadoopNameNode::StartApplication (void) {
 
     }
 
+    // Create the socket listening to HDFS Clients
     if (!m_socket2HdfsClients) {
         m_socket2HdfsClients = Socket::CreateSocket (GetNode(), TcpSocketFactory::GetTypeId());
 
@@ -134,15 +135,31 @@ void HadoopNameNode::RecvFromDataNode (Ptr<Socket> socket) {
         case NameNodeDataNodeProtocolHeader::DATA_NODE_REGISTER_REQ: {
             NS_LOG_LOGIC("Recieved DATA_NODE_REGISTER_REQUEST message from a Data Node");
 
-            RegisterRequestMsg msg;
-            p->RemoveHeader(msg);
+            RegisterRequestMsg reqMsg;
+            p->RemoveHeader(reqMsg);
 
-            NS_LOG_LOGIC ("Registering Node Pod:Rack:Host = " << msg.GetPodNum() << ":" << msg.GetRackNum() << ":" << msg.GetHostNum());
-        }
-        break;
+            NS_LOG_LOGIC ("Registering Node Pod:Rack:Host = " << reqMsg.GetPodNum() << ":" << reqMsg.GetRackNum() << ":" << reqMsg.GetHostNum());
+#if 0
+            Ptr<Packet> copy = p->Copy();
+            Ipv4Header iph;
+            copy->RemoveHeader (iph);
 
-        case NameNodeDataNodeProtocolHeader::DATA_NODE_REGISTER_REP: {
-            NS_LOG_LOGIC("Recieved DATA_NODE_REGISTER_REPLY message from a Data Node");
+            m_dataNodeAddresses [m_dataNodeCount++] = iph.GetSource ();
+#else
+            m_dataNodeAddresses [m_dataNodeCount++] = reqMsg.GetIpAddress ();
+#endif
+            //Send Register Reply Message
+            Ptr<Packet> repPkt = Create<Packet> ();
+            
+            RegisterReplyMsg repMsg;
+            repMsg.SetResultCode(0); //zero for success
+            repPkt->AddHeader (repMsg);
+
+            NameNodeDataNodeProtocolHeader repHeader;
+            repHeader.SetMsgType (NameNodeDataNodeProtocolHeader::DATA_NODE_REGISTER_REP);
+            repPkt->AddHeader (repHeader);
+
+            socket->Send(repPkt);
         }
         break;
 
@@ -160,10 +177,80 @@ bool HadoopNameNode::AcceptHdfsClientConnection (Ptr<Socket> socket, const Addre
 void HadoopNameNode::NewHdfsClientConnectionCreated (Ptr<Socket> socket, const Address& addr) {
     NS_LOG_FUNCTION (this << socket << addr);
 
+    //Wait for messages from the HDFS Client
+    socket->SetRecvCallback(MakeCallback (&HadoopNameNode::RecvFromHdfsClient, this));
     return;
 }
 
+void HadoopNameNode::RecvFromHdfsClient (Ptr<Socket> socket) {
+    NS_LOG_FUNCTION (this << socket);
+    
+    NS_LOG_LOGIC ("Receiving a Packet...");
+    Ptr<Packet> p = socket->Recv();
 
+    NameNodeHdfsClientProtocolHeader header;
+    p->RemoveHeader(header);
+
+    switch (header.GetMsgType()) {
+        case NameNodeHdfsClientProtocolHeader::HDFS_CLIENT_FILE_CREATE_REQ: {
+            NS_LOG_LOGIC("Recieved HDFS_CLIENT_FILE_CREATE_REQUEST message from an HDFS Client");
+
+            HdfsClientFileCreateReqMsg reqMsg;
+            p->RemoveHeader(reqMsg);
+
+            NS_LOG_LOGIC ("HDFS Client Adding the file: " << reqMsg.GetFileName());
+
+            //Send Reply Message
+            Ptr<Packet> repPkt = Create<Packet> ();
+            
+            HdfsClientFileCreateRepMsg repMsg;
+            repMsg.SetResultCode(0); //zero for success
+            repMsg.SetFileName (reqMsg.GetFileName());
+            repMsg.SetFileId (1);
+            repPkt->AddHeader (repMsg);
+
+            NameNodeHdfsClientProtocolHeader repHeader;
+            repHeader.SetMsgType (NameNodeHdfsClientProtocolHeader::HDFS_CLIENT_FILE_CREATE_REP);
+            repPkt->AddHeader (repHeader);
+
+            socket->Send(repPkt);
+        }
+        break;
+
+        case NameNodeHdfsClientProtocolHeader::HDFS_CLIENT_FILE_BLOCK_ADD_REQ: {
+            NS_LOG_LOGIC("Recieved HDFS_CLIENT_FILE_BLOCK_ADD_REQ  message from an HDFS Client");
+
+            HdfsClientFileBlockAddReqMsg reqMsg;
+            p->RemoveHeader (reqMsg);
+
+            NS_LOG_LOGIC ("HDFS Client Adding a block to FileId = " << reqMsg.GetFileId());
+
+            //Send Reply Message
+            Ptr<Packet> repPkt = Create<Packet> ();
+            
+            HdfsClientFileBlockAddRepMsg repMsg;
+            repMsg.SetResultCode(0); //zero for success
+            repMsg.SetFileId (reqMsg.GetFileId());
+            repMsg.SetBlockId (1);
+            repMsg.SetBlockSize (64);
+            repMsg.SetPipeline (m_dataNodeAddresses[0] , 0);
+            repMsg.SetPipeline (m_dataNodeAddresses[1] , 1);
+            repMsg.SetPipeline (m_dataNodeAddresses[2] , 2);
+
+            repPkt->AddHeader (repMsg);
+
+            NameNodeHdfsClientProtocolHeader repHeader;
+            repHeader.SetMsgType (NameNodeHdfsClientProtocolHeader::HDFS_CLIENT_FILE_BLOCK_ADD_REP);
+            repPkt->AddHeader (repHeader);
+
+            socket->Send(repPkt);
+        }
+        break;
+
+        default:
+            NS_LOG_LOGIC("Recieved UnIdentified Message From an HDFS Client.... " << header.GetMsgType());
+    }
+}
 
 };
 

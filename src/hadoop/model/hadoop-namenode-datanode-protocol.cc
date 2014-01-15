@@ -53,21 +53,25 @@ namespace ns3 {
 
     TypeId NameNodeDataNodeProtocolHeader::GetInstanceTypeId (void) const {
         NS_LOG_FUNCTION (this);
+
         return GetTypeId ();
     }
 
     void NameNodeDataNodeProtocolHeader::SetMsgType (uint32_t msgType) {
-        NS_LOG_FUNCTION (this);
+        NS_LOG_FUNCTION (this << msgType);
+
         m_msgType = msgType;
     }
 
     uint32_t NameNodeDataNodeProtocolHeader::GetMsgType (void) {
         NS_LOG_FUNCTION (this);
+
         return m_msgType;
     }
 
     uint32_t NameNodeDataNodeProtocolHeader::GetSerializedSize (void) const {
         NS_LOG_FUNCTION (this);
+
         return 4;
     }
 
@@ -76,17 +80,18 @@ namespace ns3 {
 
         Buffer::Iterator i = start;
         i.WriteHtonU32(m_msgType);
-
     }
 
     uint32_t NameNodeDataNodeProtocolHeader::Deserialize (Buffer::Iterator start) {
         NS_LOG_FUNCTION (this << &start);
+
         m_msgType = start.ReadNtohU32 ();
         return 4;
     }
 
     void NameNodeDataNodeProtocolHeader::Print (std::ostream &os) const {
         NS_LOG_FUNCTION (this << &os);
+
         os << "Msg Type = " << m_msgType; 
     }
 
@@ -120,43 +125,67 @@ namespace ns3 {
 
     TypeId RegisterRequestMsg::GetInstanceTypeId (void) const {
         NS_LOG_FUNCTION (this);
+
         return GetTypeId ();
     }
 
     void RegisterRequestMsg::SetPodNum (uint32_t podNum) {
-        NS_LOG_FUNCTION (this);
+        NS_LOG_FUNCTION (this << podNum);
+
         m_podNum = podNum;
     }
 
     uint32_t RegisterRequestMsg::GetPodNum (void) {
         NS_LOG_FUNCTION (this);
+
         return m_podNum;
     }
 
     void RegisterRequestMsg::SetRackNum (uint32_t rackNum) {
-        NS_LOG_FUNCTION (this);
+        NS_LOG_FUNCTION (this << rackNum);
+
         m_rackNum = rackNum;
     }
 
     uint32_t RegisterRequestMsg::GetRackNum (void) {
         NS_LOG_FUNCTION (this);
+
         return m_rackNum;
     }
 
    void RegisterRequestMsg::SetHostNum (uint32_t hostNum) {
-        NS_LOG_FUNCTION (this);
+        NS_LOG_FUNCTION (this << hostNum);
+
         m_hostNum = hostNum;
     }
 
     uint32_t RegisterRequestMsg::GetHostNum (void) {
         NS_LOG_FUNCTION (this);
+
         return m_hostNum;
+    }
+
+    
+    void RegisterRequestMsg::SetIpAddress (Ipv4Address addr) {
+        NS_LOG_FUNCTION (this << addr);
+
+        uint32_t intAddr = addr.Get ();
+        NS_LOG_LOGIC ("Address in Numeric Form " << intAddr);
+        NS_LOG_LOGIC (((intAddr & 0xFF000000) >> 24) << "." <<  ((intAddr & 0x00FF0000) >> 16) << "." <<  ((intAddr & 0x0000FF00) >> 8) << "." << (intAddr & 0x000000FF));
+        m_ipAddress = addr;
+    }
+
+    Ipv4Address RegisterRequestMsg::GetIpAddress (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_ipAddress;
     }
 
 
     uint32_t RegisterRequestMsg::GetSerializedSize (void) const {
         NS_LOG_FUNCTION (this);
-        return 12;
+
+        return 16;
     }
 
     void RegisterRequestMsg::Serialize (Buffer::Iterator start) const {
@@ -166,19 +195,24 @@ namespace ns3 {
         i.WriteHtonU32(m_podNum);
         i.WriteHtonU32(m_rackNum);
         i.WriteHtonU32(m_hostNum);
+        i.WriteHtonU32(m_ipAddress.Get());
     }
 
     uint32_t RegisterRequestMsg::Deserialize (Buffer::Iterator start) {
         NS_LOG_FUNCTION (this << &start);
+
         m_podNum = start.ReadNtohU32 ();
         m_rackNum = start.ReadNtohU32 ();
         m_hostNum = start.ReadNtohU32 ();
-        return 12;
+        m_ipAddress.Set (start.ReadNtohU32 ());
+      
+        return 16;
     }
 
     void RegisterRequestMsg::Print (std::ostream &os) const {
         NS_LOG_FUNCTION (this << &os);
-        os << "Pod:Rack:Host = " << m_podNum << ":" << m_rackNum << ":" << m_hostNum; 
+
+        os << "Pod:Rack:Host = " << m_podNum << ":" << m_rackNum << ":" << m_hostNum << " IP Address = " << m_ipAddress; 
     }
 
 
@@ -209,21 +243,25 @@ namespace ns3 {
 
     TypeId RegisterReplyMsg::GetInstanceTypeId (void) const {
         NS_LOG_FUNCTION (this);
+
         return GetTypeId ();
     }
 
     void RegisterReplyMsg::SetResultCode (uint32_t resultCode) {
-        NS_LOG_FUNCTION (this);
+        NS_LOG_FUNCTION (this << resultCode);
+
         m_resultCode = resultCode;
     }
 
     uint32_t RegisterReplyMsg::GetResultCode (void) {
         NS_LOG_FUNCTION (this);
+
         return m_resultCode;
     }
 
     uint32_t RegisterReplyMsg::GetSerializedSize (void) const {
         NS_LOG_FUNCTION (this);
+
         return 4;
     }
 
@@ -236,12 +274,14 @@ namespace ns3 {
 
     uint32_t RegisterReplyMsg::Deserialize (Buffer::Iterator start) {
         NS_LOG_FUNCTION (this << &start);
+
         m_resultCode = start.ReadNtohU32 ();
         return 4;
     }
 
     void RegisterReplyMsg::Print (std::ostream &os) const {
         NS_LOG_FUNCTION (this << &os);
+
         os << "Result Code = " << m_resultCode; 
     }
 

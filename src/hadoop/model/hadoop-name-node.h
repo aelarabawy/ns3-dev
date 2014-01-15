@@ -47,16 +47,19 @@ private:
     Ptr<Socket> m_socket2HdfsClients; //Socket listening to HDFS Clients
     Ipv4Address m_ownIpAddress;
 
+    uint32_t m_dataNodeCount;
+    Ipv4Address m_dataNodeAddresses [16];
+
     void StartApplication (void);
     void StopApplication (void);
 
     bool AcceptDataNodeConnection (Ptr<Socket> socket, const Address& addr);
     void NewDataNodeConnectionCreated (Ptr<Socket> socket, const Address& addr);
+    void RecvFromDataNode (Ptr<Socket> socket); 
 
     bool AcceptHdfsClientConnection (Ptr<Socket> socket, const Address& addr);
     void NewHdfsClientConnectionCreated (Ptr<Socket> socket, const Address& addr);
-
-    void RecvFromDataNode (Ptr<Socket> socket); 
+    void RecvFromHdfsClient (Ptr<Socket> socket); 
 };
 
 };
