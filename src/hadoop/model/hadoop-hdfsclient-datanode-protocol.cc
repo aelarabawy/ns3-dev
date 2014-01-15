@@ -45,9 +45,9 @@ namespace ns3 {
     }
 
     TypeId HdfsClientDataNodeProtocolHeader::GetTypeId (void) {
-        static TypeId tid = TypeId ("ns3::NameNodeHdfsClientProtocolHeader")
+        static TypeId tid = TypeId ("ns3::HdfsClientDataNodeProtocolHeader")
             .SetParent<Header> ()
-            .AddConstructor<NameNodeHdfsClientProtocolHeader> ()
+            .AddConstructor<HdfsClientDataNodeProtocolHeader> ()
         ;
 
         return tid;

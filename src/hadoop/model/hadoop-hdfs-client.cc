@@ -92,6 +92,9 @@ void HadoopHdfsClient::AddFile (string fileName, Time scheduledTime) {
     m_files[m_fileCount].m_fileName = fileName;
     m_files[m_fileCount].m_state = FileInfo::FILE_STATE_SCHEDULED;
     m_files[m_fileCount].m_startTime = scheduledTime;
+
+    //Increment number of files
+    m_fileCount++;
 }
 
 
@@ -145,7 +148,7 @@ void HadoopHdfsClient::NameNodeConnectionFailed (Ptr<Socket> socket) {
 /* Callback function called by simulator
    when the scheduled time of a file is reached */
 void HadoopHdfsClient::RegisterFileWithNameNode () {
-    NS_LOG_FUNCTION (this);
+    NS_LOG_FUNCTION (this << m_fileCount << Simulator::Now());
 
     //Find the file to be Registered with name node
     for (uint32_t i = 0; i < m_fileCount ; ++i) {
