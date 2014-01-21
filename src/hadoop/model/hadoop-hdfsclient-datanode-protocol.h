@@ -39,7 +39,9 @@ public:
     enum {
         HDFS_CLIENT_PIPELINE_CREATE_REQ = 0,
         HDFS_CLIENT_PIPELINE_CREATE_REP = 1,
-        HDFS_CLIENT_PACKET_ACK = 2
+        HDFS_CLIENT_PACKET = 2,
+        HDFS_CLIENT_PACKET_ACK = 4,
+        HDFS_CLIENT_PACKET_COMPLETE = 5
     };
 
     HdfsClientDataNodeProtocolHeader();
@@ -110,6 +112,47 @@ private:
     uint32_t m_blockId;
 };
 
+class HdfsClientPacketMsg: public Header {
+public:
+    HdfsClientPacketMsg();
+    virtual ~HdfsClientPacketMsg();
+    static TypeId GetTypeId (void);
+
+    void SetBlockId (uint32_t blockId);
+    uint32_t GetBlockId (void);
+
+    void SetPacketId (uint32_t packetId);
+    uint32_t GetPacketId (void);
+
+    void SetSegmentId (uint32_t segmentId);
+    uint32_t GetSegmentId (void);
+
+    void SetLastSegment (bool lastSegment);
+    bool GetLastSegment (void);
+
+    void SetLastPacket (bool lastPacket);
+    bool GetLastPacket (void);
+
+    void SetPacketSize (uint32_t packetSize);
+    uint32_t GetPacketSize (void);
+
+    TypeId GetInstanceTypeId (void) const;
+    virtual uint32_t GetSerializedSize (void) const;
+    virtual void Serialize (Buffer::Iterator start) const;
+    virtual uint32_t Deserialize (Buffer::Iterator start);
+    virtual void Print (std::ostream &os) const; 
+
+private:
+    uint32_t m_blockId;
+    uint32_t m_packetId;
+    uint32_t m_segmentId;
+
+    bool m_lastSegmentInPacket;
+    bool m_lastPacketInBlock;
+
+    uint32_t m_packetSize;
+};
+
 
 class HdfsClientPacketAckMsg: public Header {
 public:
@@ -126,6 +169,12 @@ public:
     void SetPacketId (uint32_t packetId);
     uint32_t GetPacketId (void);
 
+    void SetLastPacket (bool lastPacket);
+    bool GetLastPacket (void);
+
+    void SetPacketSize (uint32_t packetSize);
+    uint32_t GetPacketSize (void);
+
     TypeId GetInstanceTypeId (void) const;
     virtual uint32_t GetSerializedSize (void) const;
     virtual void Serialize (Buffer::Iterator start) const;
@@ -136,7 +185,45 @@ private:
     uint32_t m_resultCode;
     uint32_t m_blockId;
     uint32_t m_packetId;
+    bool m_lastPacketInBlock;
+    uint32_t m_packetSize;
 };
+
+class HdfsClientPacketCompleteMsg: public Header {
+public:
+    HdfsClientPacketCompleteMsg();
+    virtual ~HdfsClientPacketCompleteMsg();
+    static TypeId GetTypeId (void);
+
+    void SetResultCode (uint32_t resultCode);
+    uint32_t GetResultCode (void);
+
+    void SetBlockId (uint32_t blockId);
+    uint32_t GetBlockId (void);
+
+    void SetPacketId (uint32_t packetId);
+    uint32_t GetPacketId (void);
+
+    void SetLastPacket (bool lastPacket);
+    bool GetLastPacket (void);
+
+    void SetPacketSize (uint32_t packetSize);
+    uint32_t GetPacketSize (void);
+
+    TypeId GetInstanceTypeId (void) const;
+    virtual uint32_t GetSerializedSize (void) const;
+    virtual void Serialize (Buffer::Iterator start) const;
+    virtual uint32_t Deserialize (Buffer::Iterator start);
+    virtual void Print (std::ostream &os) const; 
+
+private:
+    uint32_t m_resultCode;
+    uint32_t m_blockId;
+    uint32_t m_packetId;
+    bool m_lastPacketInBlock;
+    uint32_t m_packetSize;
+};
+
 
 }; //namespace ns3
 

@@ -94,6 +94,8 @@ private:
             m_totalPacketCount = 0;
             m_packetSentCount = 0;
             m_packetAckedCount = 0;
+            m_packetCompletedCount = 0;
+            m_lastPacketSize = 0;
         }
 
         ~BlockInfo() {
@@ -122,6 +124,8 @@ private:
         uint32_t m_totalPacketCount;
         uint32_t m_packetSentCount;
         uint32_t m_packetAckedCount;
+        uint32_t m_packetCompletedCount;
+        uint32_t m_lastPacketSize;
     };
 
 
@@ -154,7 +158,6 @@ private:
     void PipelineConnectionFailed (Ptr<Socket> socket); 
     void RecvFromPipeline (Ptr<Socket> socket); 
 
-
     Ptr<Socket> ConnectToDataNode (Ipv4Address dataNodeAddress);
 
     void SendFileCreateReqMsg (Ptr<Socket> socket, string fileName);
@@ -163,6 +166,10 @@ private:
     void SendBlockComplete (Ptr<Socket> socket, uint32_t blockId);
 
     void TransferData (Ptr<Socket> socket, BlockInfo & block);
+    void SendHadoopPacketReq (Ptr<Socket> socket, uint32_t blockId , uint32_t packetId, bool lastPacket, uint32_t packetSize);
+
+
+    void SendHadoopPacketData (Ptr<Socket> socket, uint32_t packetSize);
 };
 
 };

@@ -31,8 +31,13 @@ using namespace std;
 
 namespace ns3 {
 
+#define PORT_NUM_DATA_NODES 8000;
+#define PORT_NUM_HDFS_CLIENTS 9000;
 #define MAX_PIPELINE_LEN 3
-#define DATA_NODE_TRAFFIC_LISTENING_PORT 9001
+#define DATA_NODE_CONTROL_LISTENING_PORT 9001
+#define DATA_NODE_TRAFFIC_LISTENING_PORT 9002
+
+#define PACKET_SIZE 1000
 
 }; //namespace ns3
 

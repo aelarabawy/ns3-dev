@@ -32,6 +32,8 @@ using namespace std;
 
 namespace ns3 {
 
+#define MAX_PER_DATA_NODE_BLOCK_COUNT 16
+
 class HadoopDataNode : public Application {
 
 public:
@@ -42,13 +44,71 @@ public:
     void SetLocation(uint32_t podNum, uint32_t rackNum, uint32_t hostNum);
 
 private:
+    class BlockInfo {
+    public:
+
+        BlockInfo() {
+            m_state = BlockInfo::BLOCK_STATE_IDLE;
+            m_blockId = 0;
+            m_socketPrev = NULL;
+            m_socketNext = NULL;
+
+            m_packet = NULL;
+
+            m_currentPacketSize = 0;
+            m_currentPacketId = 0;
+            m_lastPacket = false;
+            m_rawTraffic = false;
+
+            m_packetRcvdCount = 0;
+            m_packetSentCount = 0;
+
+            m_bytesRcvdInPacket = 0;
+        }
+
+        ~BlockInfo() {
+        }
+
+        enum BlockState {
+            BLOCK_STATE_IDLE = 0,
+            BLOCK_STATE_PIPELINE_REQUESTED = 1,
+            BLOCK_STATE_PIPELINE_ESTABLISHED = 2,
+            BLOCK_STATE_TRANSFER_IN_PROGRESS = 3,
+            BLOCK_STATE_TRANSFER_COMPLETED = 4
+        };
+
+        BlockState m_state;
+
+        uint32_t m_blockId;
+        Ptr<Socket> m_socketPrev;
+        Ptr<Socket> m_socketNext;
+        
+        Ptr<Packet> m_packet;
+
+        uint32_t m_currentPacketSize;
+        uint32_t m_currentPacketId;
+        bool m_lastPacket;
+        bool m_rawTraffic;
+
+        uint32_t m_bytesRcvdInPacket;
+
+        uint32_t m_packetRcvdCount;
+        uint32_t m_packetSentCount;
+    };
+
+
     uint32_t m_podNum;
     uint32_t m_rackNum;
     uint32_t m_hostNum;
 
     Ptr<Socket> m_socket2NameNode;  //Socket connecting to Name Node
     Address m_nameNodeAddress; //Address for Name node
-    
+ 
+    Ptr<Socket> m_serverSocketPipeline;  //Socket listening to Data Nodes and HdfsClients
+    Ipv4Address m_ownIpAddress;
+
+    uint32_t m_blockCount;
+    BlockInfo m_blocks[MAX_PER_DATA_NODE_BLOCK_COUNT];
 
     // inherited from Application base class.
     virtual void StartApplication (void);    // Called at time specified by Start
@@ -57,82 +117,29 @@ private:
     void NameNodeConnectionSucceeded (Ptr<Socket> socket);
     void NameNodeConnectionFailed (Ptr<Socket> socket);
     void RecvFromNameNode (Ptr<Socket> socket); 
+
+    bool AcceptPipelineConnection (Ptr<Socket> socket, const Address& addr);
+    void NewPipelineConnectionCreated (Ptr<Socket> socket, const Address& addr);
+    void RecvFromPipelinePrev (Ptr<Socket> socket); 
+
+    void ConnectPipelineSocketNext (Ptr<Socket> socket, Ipv4Address address);
+
+    void pipelineConnectionSucceeded (Ptr<Socket> socket);
+    void pipelineConnectionFailed (Ptr<Socket> socket);
+    void RecvFromPipelineNext (Ptr<Socket> socket); 
+    void HandlePipelinePrevReception (Ptr<Socket> socket, Ptr<Packet> p);
+
+
+    void SendRegisterReqMsg (Ptr<Socket> socket);
+    void SendPacketAck (Ptr<Socket> socket, uint32_t blockId, uint32_t packetId, bool isLastPacket, uint32_t packetSize);
+    void SendPipelineCreateRepMsg (Ptr<Socket> socket, uint32_t blockId);
+
+
+    void HandleDataPacket (Ptr<Packet> p, BlockInfo& block); 
+    void SendPacketComplete (Ptr<Socket> socket, uint32_t blockId, uint32_t packetId, bool lastPacket, uint32_t packetSize);
 };
 
 };
 
 #endif //HADOOP_DATA_NODE_H
 
-
-
-#if 0
-
-public:
-
-  /**
-   * \param maxBytes the total number of bytes to send
-   *
-   * Set the total number of bytes to send. Once these bytes are sent, no packet 
-   * is sent again, even in on state. The value zero means that there is no 
-   * limit.
-   */
-  void SetMaxBytes (uint32_t maxBytes);
-
-  /**
-   * \return pointer to associated socket
-   */
-  Ptr<Socket> GetSocket (void) const;
-
- /**
-  * Assign a fixed random variable stream number to the random variables
-  * used by this model.  Return the number of streams (possibly zero) that
-  * have been assigned.
-  *
-  * \param stream first stream index to use
-  * \return the number of stream indices assigned by this model
-  */
-  int64_t AssignStreams (int64_t stream);
-
-protected:
-  virtual void DoDispose (void);
-private:
-
-  //helpers
-  void CancelEvents ();
-
-  void Construct (Ptr<Node> n,
-                  const Address &remote,
-                  std::string tid,
-                  const RandomVariable& ontime,
-                  const RandomVariable& offtime,
-                  uint32_t size);
-
-
-  // Event handlers
-  void StartSending ();
-  void StopSending ();
-  void SendPacket ();
-
-  Ptr<Socket>     m_socket;       // Associated socket
-  Address         m_peer;         // Peer address
-  bool            m_connected;    // True if connected
-  Ptr<RandomVariableStream>  m_onTime;       // rng for On Time
-  Ptr<RandomVariableStream>  m_offTime;      // rng for Off Time
-  DataRate        m_cbrRate;      // Rate that data is generated
-  uint32_t        m_pktSize;      // Size of packets
-  uint32_t        m_residualBits; // Number of generated, but not sent, bits
-  Time            m_lastStartTime; // Time last packet sent
-  uint32_t        m_maxBytes;     // Limit total number of bytes sent
-  uint32_t        m_totBytes;     // Total bytes sent so far
-  EventId         m_startStopEvent;     // Event id for next start or stop event
-  EventId         m_sendEvent;    // Eventid of pending "send packet" event
-  bool            m_sending;      // True if currently in sending state
-  TypeId          m_tid;
-  TracedCallback<Ptr<const Packet> > m_txTrace;
-
-private:
-  void ScheduleNextTx ();
-  void ScheduleStartEvent ();
-  void ScheduleStopEvent ();
-
-#endif

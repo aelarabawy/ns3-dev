@@ -30,9 +30,6 @@
 
 using namespace std;
 
-#define PORT_NUM_DATA_NODES 8000;
-#define PORT_NUM_HDFS_CLIENTS 9000;
-
 namespace ns3 {
 
 class HadoopNameNode : public Application {

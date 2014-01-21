@@ -301,6 +301,158 @@ namespace ns3 {
 
 
 /*************************************************************************
+ *         HdfsClientPacketMsg
+ *        (Used by the Data Node to respond to the Hdfs Client request)
+ *************************************************************************/
+    NS_OBJECT_ENSURE_REGISTERED (HdfsClientPacketMsg);
+
+    HdfsClientPacketMsg::HdfsClientPacketMsg ()
+       : m_blockId (0),
+         m_packetId (0),
+         m_segmentId (0),
+         m_lastSegmentInPacket (false),
+         m_lastPacketInBlock (false),
+         m_packetSize (0) {
+        NS_LOG_FUNCTION (this);
+    }
+
+    HdfsClientPacketMsg::~HdfsClientPacketMsg() {
+        NS_LOG_FUNCTION (this);
+    }
+
+    TypeId HdfsClientPacketMsg::GetTypeId (void) {
+        static TypeId tid = TypeId ("ns3::HdfsClientPacketMsg")
+            .SetParent<Header> ()
+            .AddConstructor<HdfsClientPacketMsg> ()
+        ;
+
+        return tid;
+    }
+
+    TypeId HdfsClientPacketMsg::GetInstanceTypeId (void) const {
+        NS_LOG_FUNCTION (this);
+
+        return GetTypeId ();
+    }
+
+    void HdfsClientPacketMsg::SetBlockId (uint32_t blockId) {
+        NS_LOG_FUNCTION (this << blockId);
+
+        m_blockId = blockId;
+    }
+
+    uint32_t HdfsClientPacketMsg::GetBlockId (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_blockId;
+    }
+
+    void HdfsClientPacketMsg::SetPacketId (uint32_t packetId) {
+        NS_LOG_FUNCTION (this << packetId);
+
+        m_packetId = packetId;
+    }
+
+    uint32_t HdfsClientPacketMsg::GetPacketId (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_packetId;
+    }
+
+    void HdfsClientPacketMsg::SetSegmentId (uint32_t segmentId) {
+        NS_LOG_FUNCTION (this << segmentId);
+
+        m_segmentId = segmentId;
+    }
+
+    uint32_t HdfsClientPacketMsg::GetSegmentId (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_segmentId;
+    }
+
+    void HdfsClientPacketMsg::SetLastSegment (bool lastSegment) {
+        NS_LOG_FUNCTION (this << lastSegment);
+
+        m_lastSegmentInPacket = lastSegment;
+    }
+
+    bool HdfsClientPacketMsg::GetLastSegment (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_lastSegmentInPacket;
+    }
+
+
+    void HdfsClientPacketMsg::SetLastPacket (bool lastPacket) {
+        NS_LOG_FUNCTION (this << lastPacket);
+
+        m_lastPacketInBlock = lastPacket;
+    }
+
+    bool HdfsClientPacketMsg::GetLastPacket (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_lastPacketInBlock;
+    }
+
+    void HdfsClientPacketMsg::SetPacketSize (uint32_t packetSize) {
+        NS_LOG_FUNCTION (this << packetSize);
+
+        m_packetSize = packetSize;
+    }
+
+    uint32_t HdfsClientPacketMsg::GetPacketSize (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_packetSize;
+    }
+
+
+   uint32_t HdfsClientPacketMsg::GetSerializedSize (void) const {
+        NS_LOG_FUNCTION (this);
+
+        return 24;
+    }
+
+    void HdfsClientPacketMsg::Serialize (Buffer::Iterator start) const {
+        NS_LOG_FUNCTION (this << &start);
+
+        Buffer::Iterator i = start;
+                
+        i.WriteHtonU32(m_blockId);
+        i.WriteHtonU32(m_packetId);
+        i.WriteHtonU32(m_segmentId);
+      
+        i.WriteHtonU32(m_lastSegmentInPacket);
+        i.WriteHtonU32(m_lastPacketInBlock);
+
+        i.WriteHtonU32(m_packetSize);
+    }
+
+    uint32_t HdfsClientPacketMsg::Deserialize (Buffer::Iterator start) {
+        NS_LOG_FUNCTION (this << &start);
+
+        m_blockId = start.ReadNtohU32 ();
+        m_packetId = start.ReadNtohU32 ();
+        m_segmentId = start.ReadNtohU32 ();
+        m_lastSegmentInPacket = start.ReadNtohU32 ();
+        m_lastPacketInBlock = start.ReadNtohU32 ();
+        m_packetSize = start.ReadNtohU32 ();
+
+        NS_LOG_LOGIC (" Block Id = " << m_blockId << " Packet Id = " << m_packetId << " SegmentId = " << m_segmentId << " PacketSize = " << m_packetSize);
+        NS_LOG_LOGIC ("Cont.... lastSegmentInPacket = " << m_lastSegmentInPacket << "lastPacketInBlock = " << m_lastPacketInBlock);
+        return 20;
+    }
+
+    void HdfsClientPacketMsg::Print (std::ostream &os) const {
+        NS_LOG_FUNCTION (this << &os);
+
+        os <<  " Block Id = " << m_blockId << " PacketId = " << m_packetId  <<  " SegmentId = " << m_segmentId << " Packet Size = " << m_packetSize;
+        os << "  lastSegmentInPacket = " << m_lastSegmentInPacket << " lastPacketInBlock = " << m_lastPacketInBlock; 
+    }
+
+/*************************************************************************
  *         HdfsClientPacketAckMsg
  *        (Used by the Data Node to respond to the Hdfs Client request)
  *************************************************************************/
@@ -310,7 +462,9 @@ namespace ns3 {
     HdfsClientPacketAckMsg::HdfsClientPacketAckMsg ()
        : m_resultCode (0),
          m_blockId (0),
-         m_packetId (0) {
+         m_packetId (0),
+         m_lastPacketInBlock (false),
+         m_packetSize (0) {
         NS_LOG_FUNCTION (this);
     }
 
@@ -370,11 +524,35 @@ namespace ns3 {
         return m_packetId;
     }
 
+    void HdfsClientPacketAckMsg::SetLastPacket (bool lastPacket) {
+        NS_LOG_FUNCTION (this << lastPacket);
+
+        m_lastPacketInBlock = lastPacket;
+    }
+
+    bool HdfsClientPacketAckMsg::GetLastPacket (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_lastPacketInBlock;
+    }
+
+    void HdfsClientPacketAckMsg::SetPacketSize (uint32_t packetSize) {
+        NS_LOG_FUNCTION (this << packetSize);
+
+        m_packetSize = packetSize;
+    }
+
+    uint32_t HdfsClientPacketAckMsg::GetPacketSize (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_packetSize;
+    }
+
 
    uint32_t HdfsClientPacketAckMsg::GetSerializedSize (void) const {
         NS_LOG_FUNCTION (this);
 
-        return 12;
+        return 20;
     }
 
     void HdfsClientPacketAckMsg::Serialize (Buffer::Iterator start) const {
@@ -385,6 +563,8 @@ namespace ns3 {
         i.WriteHtonU32(m_resultCode);
         i.WriteHtonU32(m_blockId);
         i.WriteHtonU32(m_packetId);
+        i.WriteHtonU32(m_lastPacketInBlock);
+        i.WriteHtonU32(m_packetSize);
     }
 
     uint32_t HdfsClientPacketAckMsg::Deserialize (Buffer::Iterator start) {
@@ -393,15 +573,152 @@ namespace ns3 {
         m_resultCode = start.ReadNtohU32 ();
         m_blockId = start.ReadNtohU32 ();
         m_packetId = start.ReadNtohU32 ();
+        m_lastPacketInBlock = start.ReadNtohU32 ();
+        m_packetSize = start.ReadNtohU32 ();
 
-        NS_LOG_LOGIC ("Result Code = " << m_resultCode << " Block Id = " << m_blockId << " Packet Id = " << m_packetId);
-        return 12;
+        NS_LOG_LOGIC ("Result Code = " << m_resultCode << " Block Id = " << m_blockId << " Packet Id = " << m_packetId << " lastPacketInBlock = " << m_lastPacketInBlock << " PacketSize = " << m_packetSize);
+        return 20;
     }
 
     void HdfsClientPacketAckMsg::Print (std::ostream &os) const {
         NS_LOG_FUNCTION (this << &os);
 
-        os <<  "ResultCode = " << m_resultCode << " Block Id = " << m_blockId << " PacketId = " << m_packetId; 
+        os <<  "ResultCode = " << m_resultCode << " Block Id = " << m_blockId << " PacketId = " << m_packetId  << " lastPacketInBlock = " << m_lastPacketInBlock << " PacketSize = " << m_packetSize; 
+    }
+
+
+/*************************************************************************
+ *         HdfsClientPacketCompleteMsg
+ *        (Used by the Data Node to Notify of packet transfer completed)
+ *************************************************************************/
+
+    NS_OBJECT_ENSURE_REGISTERED (HdfsClientPacketCompleteMsg);
+
+    HdfsClientPacketCompleteMsg::HdfsClientPacketCompleteMsg ()
+       : m_resultCode (0),
+         m_blockId (0),
+         m_packetId (0),
+         m_lastPacketInBlock (false),
+         m_packetSize (0) {
+        NS_LOG_FUNCTION (this);
+    }
+
+    HdfsClientPacketCompleteMsg::~HdfsClientPacketCompleteMsg() {
+        NS_LOG_FUNCTION (this);
+    }
+
+    TypeId HdfsClientPacketCompleteMsg::GetTypeId (void) {
+        static TypeId tid = TypeId ("ns3::HdfsClientPacketCompleteMsg")
+            .SetParent<Header> ()
+            .AddConstructor<HdfsClientPacketCompleteMsg> ()
+        ;
+
+        return tid;
+    }
+
+    TypeId HdfsClientPacketCompleteMsg::GetInstanceTypeId (void) const {
+        NS_LOG_FUNCTION (this);
+
+        return GetTypeId ();
+    }
+
+    void HdfsClientPacketCompleteMsg::SetResultCode (uint32_t resultCode) {
+        NS_LOG_FUNCTION (this << resultCode);
+
+        m_resultCode = resultCode;
+    }
+
+    uint32_t HdfsClientPacketCompleteMsg::GetResultCode (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_resultCode;
+    }
+
+ 
+    void HdfsClientPacketCompleteMsg::SetBlockId (uint32_t blockId) {
+        NS_LOG_FUNCTION (this << blockId);
+
+        m_blockId = blockId;
+    }
+
+    uint32_t HdfsClientPacketCompleteMsg::GetBlockId (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_blockId;
+    }
+
+    void HdfsClientPacketCompleteMsg::SetPacketId (uint32_t packetId) {
+        NS_LOG_FUNCTION (this << packetId);
+
+        m_packetId = packetId;
+    }
+
+    uint32_t HdfsClientPacketCompleteMsg::GetPacketId (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_packetId;
+    }
+
+    void HdfsClientPacketCompleteMsg::SetLastPacket (bool lastPacket) {
+        NS_LOG_FUNCTION (this << lastPacket);
+
+        m_lastPacketInBlock = lastPacket;
+    }
+
+    bool HdfsClientPacketCompleteMsg::GetLastPacket (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_lastPacketInBlock;
+    }
+
+    void HdfsClientPacketCompleteMsg::SetPacketSize (uint32_t packetSize) {
+        NS_LOG_FUNCTION (this << packetSize);
+
+        m_packetSize = packetSize;
+    }
+
+    uint32_t HdfsClientPacketCompleteMsg::GetPacketSize (void) {
+        NS_LOG_FUNCTION (this);
+
+        return m_packetSize;
+    }
+
+
+   uint32_t HdfsClientPacketCompleteMsg::GetSerializedSize (void) const {
+        NS_LOG_FUNCTION (this);
+
+        return 20;
+    }
+
+    void HdfsClientPacketCompleteMsg::Serialize (Buffer::Iterator start) const {
+        NS_LOG_FUNCTION (this << &start);
+
+        Buffer::Iterator i = start;
+                
+        i.WriteHtonU32(m_resultCode);
+        i.WriteHtonU32(m_blockId);
+        i.WriteHtonU32(m_packetId);
+        i.WriteHtonU32(m_lastPacketInBlock);
+        i.WriteHtonU32(m_packetSize);
+    }
+
+    uint32_t HdfsClientPacketCompleteMsg::Deserialize (Buffer::Iterator start) {
+        NS_LOG_FUNCTION (this << &start);
+
+        m_resultCode = start.ReadNtohU32 ();
+        m_blockId = start.ReadNtohU32 ();
+        m_packetId = start.ReadNtohU32 ();
+        m_lastPacketInBlock = start.ReadNtohU32 ();
+        m_packetSize = start.ReadNtohU32 ();
+
+        NS_LOG_LOGIC ("Result Code = " << m_resultCode << " Block Id = " << m_blockId << " Packet Id = " << m_packetId << " lastPacketInBlock = " << m_lastPacketInBlock << " PacketSize = " << m_packetSize);
+        return 20;
+    }
+
+    void HdfsClientPacketCompleteMsg::Print (std::ostream &os) const {
+        NS_LOG_FUNCTION (this << &os);
+
+        os <<  "ResultCode = " << m_resultCode << " Block Id = " << m_blockId << " PacketId = " << m_packetId  << " lastPacketInBlock = " << m_lastPacketInBlock << " PacketSize = " << m_packetSize; 
     }
 
 };

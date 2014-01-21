@@ -197,6 +197,7 @@ void HadoopHdfsClient::RecvFromNameNode (Ptr<Socket> socket) {
                         //Assign a new block
                         m_blocks[m_blockCount].m_state = BlockInfo::BLOCK_STATE_REGISTRATION_REQUESTED;
                         m_blocks[m_blockCount].m_fileInfo = &m_files[i];
+                        m_blockCount++;
 
                         //Sending HDFS_CLIENT_FILE_BLOCK_ADD_REQ
                         SendBlockAddReqMsg (m_socket2NameNode, repMsg.GetFileId());
@@ -222,8 +223,10 @@ void HadoopHdfsClient::RecvFromNameNode (Ptr<Socket> socket) {
             NS_LOG_LOGIC ("Placements = " << repMsg.GetPipeline(0).Get() << ":" <<  repMsg.GetPipeline(1).Get() << ":" <<  repMsg.GetPipeline (2).Get() ) ;
 
             //Find the block in the list
+            bool foundBlock = false;
             for (uint32_t i = 0; i < m_blockCount; ++i) {
                 if (m_blocks[i].m_fileInfo->m_fileId == repMsg.GetFileId() ) {
+                    foundBlock = true;
                     if (m_blocks[i].m_state == BlockInfo::BLOCK_STATE_REGISTRATION_REQUESTED) {
                         m_blocks[i].m_state = BlockInfo::BLOCK_STATE_REGISTERED;
                         m_blocks[i].m_blockId = repMsg.GetBlockId();
@@ -241,6 +244,9 @@ void HadoopHdfsClient::RecvFromNameNode (Ptr<Socket> socket) {
                         break;
                     }
                 }
+            }
+            if (!foundBlock) {
+                NS_LOG_ERROR ("ERROR: Could not find block with file Id = " << repMsg.GetFileId());
             }
         }
         break;
@@ -270,13 +276,15 @@ Ptr<Socket> HadoopHdfsClient::ConnectToDataNode (Ipv4Address dataNodeAddress) {
     return socket;
 }
 
+
 void HadoopHdfsClient::PipelineConnectionSucceeded (Ptr<Socket> socket) {
     NS_LOG_FUNCTION (this << socket);
 
     //First Find the pipeline for this socket
-    uint32_t index;
-    for (index = 0; index < m_blockCount; ++index) {
+    bool blockFound = false;
+    for (uint32_t index = 0; index < m_blockCount; ++index) {
         if (m_blocks [index].m_socket == socket) {
+            blockFound = true;
             if (m_blocks [index].m_state != BlockInfo::BLOCK_STATE_REGISTERED ) {
                 NS_LOG_ERROR ("ERROR: Invalid state for Block Id = " << m_blocks[index].m_blockId);
                 break; 
@@ -287,7 +295,7 @@ void HadoopHdfsClient::PipelineConnectionSucceeded (Ptr<Socket> socket) {
         }
     }
 
-    if (index >= 16) {
+    if (!blockFound) {
         NS_LOG_ERROR ("Error: Can not find the pipeline for this socket...");
     }
 }
@@ -316,12 +324,15 @@ void HadoopHdfsClient::RecvFromPipeline (Ptr<Socket> socket) {
             NS_LOG_LOGIC ("ResultCode = " << repMsg.GetResultCode() << "Block Id = " << repMsg.GetBlockId());
             
             //Find Block
+            bool blockFound = false;
             for (uint32_t i = 0; i < m_blockCount ; ++i) {
                 if (m_blocks[i].m_blockId == repMsg.GetBlockId()) {
+                    blockFound = true;
                     if (m_blocks[i].m_state == BlockInfo::BLOCK_STATE_PIPELINE_INITIATED) {
                         m_blocks[i].m_state =  BlockInfo::BLOCK_STATE_PIPELINE_ESTABLISHED;
                        
                         //Starting Data Transfer
+                        m_blocks[i].m_state = BlockInfo::BLOCK_STATE_TRANSFER_IN_PROGRESS;
                         TransferData (socket, m_blocks[i]);
                         break;
                     } else {
@@ -329,6 +340,10 @@ void HadoopHdfsClient::RecvFromPipeline (Ptr<Socket> socket) {
                         break;
                     }
                 }
+            }
+            if (!blockFound) {
+                NS_LOG_ERROR ("ERROR: Can not find block " << repMsg.GetBlockId());
+                break;
             }
         }
         break;
@@ -342,25 +357,78 @@ void HadoopHdfsClient::RecvFromPipeline (Ptr<Socket> socket) {
             NS_LOG_LOGIC ("ResultCode = " << ackMsg.GetResultCode() << "Block Id:Packet Id = " << ackMsg.GetBlockId() << ":" << ackMsg.GetPacketId() );
             
             //Find Block
+            bool blockFound = false;
             for (uint32_t i = 0; i < m_blockCount ; ++i) {
                 if (m_blocks[i].m_blockId == ackMsg.GetBlockId()) {
+                    blockFound = true;
                     if (m_blocks[i].m_state == BlockInfo::BLOCK_STATE_TRANSFER_IN_PROGRESS) {
                         m_blocks[i].m_packetAckedCount ++;
-                        if (m_blocks[i].m_packetAckedCount == m_blocks[i].m_totalPacketCount) {
-                            m_blocks[i].m_state =  BlockInfo::BLOCK_STATE_TRANSFER_COMPLETED;
-                            NS_LOG_INFO ("Block Id " << ackMsg.GetBlockId() << " Has completed transfer");
-                          
-                            //Send BLOCK_COMPLETE to name node
-                            SendBlockComplete (m_socket2NameNode, ackMsg.GetBlockId());
-                        }
+                        SendHadoopPacketData (m_blocks[i].m_socket, ackMsg.GetPacketSize());
                     } else {
-                        NS_LOG_ERROR ("ERROR: Invalid state for Block " << ackMsg.GetBlockId());
+                        NS_LOG_ERROR ("ERROR: Invalid state for Block " << ackMsg.GetBlockId() << m_blocks[i].m_state);
                         break;
                     }
                 }
             }
+
+            if (!blockFound) {
+                NS_LOG_ERROR ("ERROR: Can not find block");
+                break;
+            }
         }
         break;
+
+        case HdfsClientDataNodeProtocolHeader::HDFS_CLIENT_PACKET_COMPLETE: {
+            NS_LOG_LOGIC("Recieved  HDFS_CLIENT_PACKET_COMPLETE message from the Data node");
+
+            HdfsClientPacketCompleteMsg completeMsg;
+            p->RemoveHeader(completeMsg);
+
+            NS_LOG_LOGIC ("ResultCode = " << completeMsg.GetResultCode() << "Block Id:Packet Id = " << completeMsg.GetBlockId() << ":" << completeMsg.GetPacketId() );
+            
+            //Find Block
+            bool blockFound = false;
+            for (uint32_t i = 0; i < m_blockCount ; ++i) {
+                if (m_blocks[i].m_blockId == completeMsg.GetBlockId()) {
+                    blockFound = true;
+                    if (m_blocks[i].m_state == BlockInfo::BLOCK_STATE_TRANSFER_IN_PROGRESS) {
+                        m_blocks[i].m_packetCompletedCount ++;
+                        if (completeMsg.GetLastPacket()) {
+                            m_blocks[i].m_state =  BlockInfo::BLOCK_STATE_TRANSFER_COMPLETED;
+                            NS_LOG_INFO ("Block Id " << completeMsg.GetBlockId() << " Has completed transfer");
+                          
+                            //Send BLOCK_COMPLETE to name node
+                            SendBlockComplete (m_socket2NameNode, completeMsg.GetBlockId());
+                        } else {
+                            //Prepare to send the following packet
+                            bool lastPacket;
+                            uint32_t packetSize;
+                            if (m_blocks[i].m_totalPacketCount == completeMsg.GetPacketId() + 1) {
+                                lastPacket = true;
+                                packetSize = m_blocks[i].m_lastPacketSize;
+                            } else {
+                                lastPacket = false;
+                                packetSize = PACKET_SIZE;
+                            }
+
+                            //Sending PacketRequest
+                            SendHadoopPacketReq (socket, m_blocks[i].m_blockId, completeMsg.GetPacketId() + 1, lastPacket, packetSize);
+                        }
+                    } else {
+                        NS_LOG_ERROR ("ERROR: Invalid state for Block " << completeMsg.GetBlockId() << m_blocks[i].m_state);
+                        break;
+                    }
+                }
+            }
+
+            if (!blockFound) {
+                NS_LOG_ERROR ("ERROR: Could not find block ");
+                break;
+            }
+        }
+        break;
+
+
 
         default:
             NS_LOG_LOGIC("Recieved UnIdentified Message From a Data Node.... " << header.GetMsgType());
@@ -455,6 +523,69 @@ void HadoopHdfsClient::SendBlockComplete (Ptr<Socket> socket, uint32_t blockId) 
 }
 
 void HadoopHdfsClient::TransferData (Ptr<Socket> socket, BlockInfo & block) {
+    NS_LOG_FUNCTION (this << socket << block.m_blockId);
+
+    uint32_t packetCount = block.m_blockSize / PACKET_SIZE;
+    uint32_t remainingSize = block.m_blockSize % PACKET_SIZE;
+
+    if (remainingSize == 0) {
+        block.m_totalPacketCount = packetCount;
+        block.m_lastPacketSize = PACKET_SIZE; 
+    } else {
+        block.m_totalPacketCount = packetCount + 1;
+        block.m_lastPacketSize = remainingSize; 
+    }
+
+    //Prepare to send the first packet
+    bool lastPacket;
+    uint32_t packetSize;
+    if (block.m_totalPacketCount == 1) {
+        lastPacket = true;
+        packetSize = block.m_lastPacketSize;
+    } else {
+        lastPacket = false;
+        packetSize = PACKET_SIZE;
+    }
+
+    //Sending PacketRequest
+    SendHadoopPacketReq (socket, block.m_blockId, 1, lastPacket, packetSize);
+}
+
+void HadoopHdfsClient::SendHadoopPacketData (Ptr<Socket> socket, uint32_t packetSize) {
+    NS_LOG_FUNCTION (this << socket << packetSize );
+
+    Ptr<Packet> p = Create<Packet> (packetSize);
+
+    socket->Send (p);
+}
+
+void HadoopHdfsClient::SendHadoopPacketReq (Ptr<Socket> socket, uint32_t blockId , uint32_t packetId, bool lastPacket, uint32_t packetSize) {
+
+    NS_LOG_FUNCTION (this << socket << blockId << packetId << lastPacket << packetSize );
+    Ptr<Packet> p = Create<Packet> ();
+       
+    HdfsClientPacketMsg msg;
+    msg.SetBlockId (blockId);
+    msg.SetPacketId (packetId);
+    msg.SetSegmentId (1);
+    msg.SetLastSegment (true);
+    msg.SetLastPacket(lastPacket);
+    msg.SetPacketSize (packetSize);
+    p->AddHeader (msg);
+
+    HdfsClientDataNodeProtocolHeader header;
+    header.SetMsgType(HdfsClientDataNodeProtocolHeader::HDFS_CLIENT_PACKET);
+    p->AddHeader (header);
+
+    NS_LOG_LOGIC ("Sending  HDFS_CLIENT_PACKET ......");
+
+    int retVal = socket->Send (p);
+    if (retVal == -1) {
+        NS_LOG_ERROR ("ERROR: FAILED TO SEND A Packet With Error " << socket->GetErrno());
+    } else {
+        NS_LOG_LOGIC ("RETVAL = " << retVal);
+    }
+    
 }
 
 };

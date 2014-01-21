@@ -50,7 +50,9 @@ HadoopDataNode::HadoopDataNode():
     m_podNum (0),
     m_rackNum (0),
     m_hostNum (0),
-    m_socket2NameNode(0)   {
+    m_socket2NameNode(0),
+    m_serverSocketPipeline (NULL),
+    m_blockCount (0)   {
     NS_LOG_FUNCTION (this);
 }
 
@@ -85,7 +87,61 @@ void HadoopDataNode::StartApplication() {
 
         NS_LOG_LOGIC("DataNode Connecting Socket is: " << m_socket2NameNode);
     }
+
+    //Get my own Ip Address
+    Ptr<Node> node = GetNode();
+    Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+    int32_t interface = ipv4->GetInterfaceForDevice(node->GetDevice(0));
+    m_ownIpAddress = ipv4->GetAddress(interface,0).GetLocal();
+    NS_LOG_LOGIC ("### Data Node IP Address is " << m_ownIpAddress.Get());
+
+    //Start listening for pipeline connections 
+    if (!m_serverSocketPipeline) {
+        m_serverSocketPipeline = Socket::CreateSocket (GetNode(), TcpSocketFactory::GetTypeId());
+
+        Address ownAddress = Address(InetSocketAddress(m_ownIpAddress, DATA_NODE_TRAFFIC_LISTENING_PORT));
+        m_serverSocketPipeline->Bind(ownAddress);
+
+        m_serverSocketPipeline->Listen();
+
+        m_serverSocketPipeline->SetAcceptCallback (
+            MakeCallback (&HadoopDataNode::AcceptPipelineConnection, this ),
+            MakeCallback (&HadoopDataNode::NewPipelineConnectionCreated, this) );
+
+
+        NS_LOG_LOGIC("Data Node Listening socket for Pipelines is: " << m_serverSocketPipeline);
+    }
+
 }
+
+void HadoopDataNode::StopApplication() {
+    NS_LOG_FUNCTION (this);
+
+    if (m_socket2NameNode) {
+        m_socket2NameNode->Close ();
+        m_socket2NameNode = NULL;
+    }
+
+    if (m_serverSocketPipeline) {
+        m_serverSocketPipeline->Close ();
+        m_serverSocketPipeline = NULL;
+    }
+
+}
+
+void HadoopDataNode::NameNodeConnectionSucceeded (Ptr<Socket> socket) {
+    NS_LOG_FUNCTION (this << socket);
+
+    //Now We need to register with the Name Node
+    SendRegisterReqMsg (socket);
+}
+
+void HadoopDataNode::NameNodeConnectionFailed (Ptr<Socket> socket) {
+    NS_LOG_FUNCTION (this << socket);
+
+    NS_LOG_ERROR ("ERROR: Connection to Name node FAILED");
+}
+
 
 void HadoopDataNode::RecvFromNameNode (Ptr<Socket> socket) {
     NS_LOG_FUNCTION (this << socket);
@@ -107,320 +163,406 @@ void HadoopDataNode::RecvFromNameNode (Ptr<Socket> socket) {
         break;
 
         default:
+            NS_LOG_LOGIC("Recieved UnIdentified Message From the Name Node.... " << header.GetMsgType());
+    }
+}
+
+bool HadoopDataNode::AcceptPipelineConnection (Ptr<Socket> socket, const Address& addr){
+    NS_LOG_FUNCTION (this << socket << addr);
+
+    //Note that this socket is the listening socket which accepted the new connection
+
+    return true;
+}
+
+void HadoopDataNode::NewPipelineConnectionCreated (Ptr<Socket> socket, const Address& addr) {
+    NS_LOG_FUNCTION (this << socket << addr);
+
+    //Note that the socket passed to this function is the new socket for the new connction
+    
+    socket->SetRecvCallback(MakeCallback (&HadoopDataNode::RecvFromPipelinePrev, this));
+
+    return;
+}
+
+void HadoopDataNode::RecvFromPipelinePrev (Ptr<Socket> socket) {
+    NS_LOG_FUNCTION (this << socket);
+        
+    Ptr<Packet> p;
+    do {
+        p = socket->Recv();
+        if (p) {
+            while (p->GetSize() > 0) {
+                NS_LOG_LOGIC ("Received Packet of Size = " <<  p->GetSize());
+                HandlePipelinePrevReception (socket, p);
+            }
+        }
+    } while (p);
+}
+
+
+void HadoopDataNode::HandlePipelinePrevReception (Ptr<Socket> socket, Ptr<Packet> p) {
+    NS_LOG_FUNCTION (this << socket << p);
+
+    //Try to find the Block through the socket
+    //bool blockFound = false;
+    for (uint32_t index = 0; index < m_blockCount; ++index) {
+        if (m_blocks[index].m_socketPrev == socket) {
+            //blockFound = true;
+            if (m_blocks[index].m_rawTraffic) {
+                HandleDataPacket (p, m_blocks[index]);
+                return;
+            }
+            break;
+        }
+    }
+
+    HdfsClientDataNodeProtocolHeader header;
+    p->RemoveHeader(header);
+     
+    switch (header.GetMsgType()) {
+        case HdfsClientDataNodeProtocolHeader::HDFS_CLIENT_PIPELINE_CREATE_REQ: {
+            NS_LOG_LOGIC("Recieved HDFS_CLIENT_PIPELINE_CREATE_REQ message");
+
+            HdfsClientPipelineCreateReqMsg msg;
+            p->RemoveHeader(msg);
+
+            //Create a new block
+            if (m_blockCount < MAX_PER_DATA_NODE_BLOCK_COUNT) {
+                m_blocks[m_blockCount].m_state  = BlockInfo::BLOCK_STATE_PIPELINE_REQUESTED; 
+                m_blocks[m_blockCount].m_blockId = msg.GetBlockId ();
+                m_blocks[m_blockCount].m_socketPrev = socket;
+
+                //Check location in the pipeline
+                bool foundInPipeline = false;
+                for (uint32_t index = 0; index < msg.GetPipelineLen(); ++index) {
+                    if (msg.GetPipeline(index) == m_ownIpAddress) {
+                        foundInPipeline = true;
+                        if (index == msg.GetPipelineLen() - 1) {
+                            //This is the last data node in the pipeline
+                            m_blocks[m_blockCount].m_socketNext = NULL;
+                            m_blocks[m_blockCount].m_state = BlockInfo::BLOCK_STATE_PIPELINE_ESTABLISHED;
+                            //Send the reply message
+                            SendPipelineCreateRepMsg (socket, msg.GetBlockId());
+                        } else {
+                            //Not the last data node
+                            Ptr<Socket> newSocket = Socket::CreateSocket (GetNode (), TcpSocketFactory::GetTypeId() );
+                            m_blocks[m_blockCount].m_socketNext = newSocket;
+
+                            ConnectPipelineSocketNext (newSocket, msg.GetPipeline(index + 1));
+                            
+                            // Store the packet for future forward 
+                            Ptr<Packet> storedPkt = Create<Packet> ();
+                            storedPkt->AddHeader (msg);
+                            storedPkt->AddHeader(header);
+                            m_blocks[m_blockCount].m_packet = storedPkt;
+                        }
+                    }
+                }
+                if (!foundInPipeline) {
+                    NS_LOG_ERROR ("ERROR: Could not find address in Pipeline");
+                    break;
+                }
+
+                m_blockCount ++;
+            }
+            else {
+                NS_LOG_ERROR ("ERROR: Max block count reached ");
+                break;
+            }
+        }
+        break;
+
+        case HdfsClientDataNodeProtocolHeader::HDFS_CLIENT_PACKET: {
+
+            HdfsClientPacketMsg msg;
+            p->RemoveHeader(msg);
+
+            NS_LOG_LOGIC ("Recieved HDFS_CLIENT_PACKET message blockId:PacketId:SegmentId = " << msg.GetBlockId() << ":" << msg.GetPacketId() << ":" << msg.GetSegmentId());
+            NS_LOG_LOGIC ("Recieved HDFS_CLIENT_PACKET message(cont.) lastSegment:lastPacket = "  << msg.GetLastSegment() << ":" << msg.GetLastPacket());
+            //Find the associated block
+
+            bool foundBlock = false;
+            for (uint32_t index = 0; index < m_blockCount; ++index) {
+                if (m_blocks[index].m_blockId == msg.GetBlockId()) {
+                    //Found the block
+                    foundBlock = true;
+                    switch (m_blocks[index].m_state) {
+                        case BlockInfo::BLOCK_STATE_PIPELINE_ESTABLISHED: {
+                            m_blocks[index].m_state = BlockInfo::BLOCK_STATE_TRANSFER_IN_PROGRESS;
+                        }
+                        //Fall Through
+                        case BlockInfo::BLOCK_STATE_TRANSFER_IN_PROGRESS: {
+                            if (m_blocks[index].m_socketNext) {
+                                //return the header and send it 
+                                NS_LOG_LOGIC ("Forwarding to the Next hop...");
+                                Ptr<Packet> forwardPkt = Create<Packet> ();
+                                forwardPkt->AddHeader (msg);
+                                forwardPkt->AddHeader (header);
+                                m_blocks[index].m_socketNext->Send (forwardPkt);
+                            } else {
+                                SendPacketAck (m_blocks[index].m_socketPrev, m_blocks[index].m_blockId, msg.GetPacketId(), msg.GetLastPacket(), msg.GetPacketSize());
+                                m_blocks[index].m_currentPacketSize = msg.GetPacketSize();
+                                m_blocks[index].m_lastPacket = msg.GetLastPacket ();
+                                m_blocks[index].m_currentPacketId = msg.GetPacketId ();
+                                m_blocks[index].m_rawTraffic = true;
+                            }
+                        }
+                        break;
+
+                        default: {
+                            NS_LOG_ERROR ("ERROR: Invalid state for block info");
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if (!foundBlock) {
+                NS_LOG_ERROR ("ERROR: Could not find block for the connection..");
+                break;
+            }
+        }
+        break;
+
+        default:
             NS_LOG_LOGIC("Recieved UnIdentified Message From a Data Node.... " << header.GetMsgType());
     }
 }
 
+void HadoopDataNode::ConnectPipelineSocketNext (Ptr<Socket> socket, Ipv4Address address) {
+    NS_LOG_FUNCTION (this << socket);
 
-void HadoopDataNode::StopApplication() {
-    NS_LOG_FUNCTION (this);
+    socket->Bind();
+    socket->Connect(Address(InetSocketAddress(address, DATA_NODE_TRAFFIC_LISTENING_PORT)));
+     
+    socket->SetConnectCallback (
+        MakeCallback (&HadoopDataNode::pipelineConnectionSucceeded, this),
+        MakeCallback (&HadoopDataNode::pipelineConnectionFailed, this));
 
-    if (m_socket2NameNode) {
-        m_socket2NameNode->Close ();
-        m_socket2NameNode = NULL;
+
+    //Set the callback for reception
+    socket->SetRecvCallback(MakeCallback (&HadoopDataNode::RecvFromPipelineNext, this));
+
+    NS_LOG_LOGIC("A new Pipeline Connecting Socket is: " << socket);
+}
+
+void HadoopDataNode::pipelineConnectionSucceeded (Ptr<Socket> socket) {
+    NS_LOG_FUNCTION (this << socket);
+
+
+    //Find the associated block info record
+    bool foundBlock = false;
+    for (uint32_t index = 0; index < m_blockCount; ++index) {
+        if (m_blocks[index].m_socketNext == socket) {
+            foundBlock = true;
+            if (m_blocks[index].m_packet) {
+                NS_LOG_LOGIC ("Forwarding PipeLineCreate to the Next Hop ... ");
+                socket->Send (m_blocks[index].m_packet);
+            } else {
+                NS_LOG_ERROR ("ERROR: Could not find packet");
+            }
+
+            break;
+        }
+    }
+    
+    if (!foundBlock) {
+        NS_LOG_ERROR ("ERROR: Could not find block for the connection..");
     }
 }
 
-void HadoopDataNode::NameNodeConnectionSucceeded (Ptr<Socket> socket) {
+
+
+void HadoopDataNode::pipelineConnectionFailed (Ptr<Socket> socket) {
     NS_LOG_FUNCTION (this << socket);
 
-    //Now We need to register with the Name Node
+    NS_LOG_ERROR ("ERROR: Failed to connect to DATA NODE");
+}
+
+void HadoopDataNode::RecvFromPipelineNext (Ptr<Socket> socket) {
+    NS_LOG_FUNCTION (this << socket);
+
+    Ptr<Packet> p = socket->Recv();
+
+    HdfsClientDataNodeProtocolHeader header;
+    p->RemoveHeader(header);
+ 
+    switch (header.GetMsgType()) {
+        case HdfsClientDataNodeProtocolHeader::HDFS_CLIENT_PIPELINE_CREATE_REP: {
+            NS_LOG_LOGIC("Recieved HDFS_CLIENT_PIPELINE_CREATE_REP message");
+
+            HdfsClientPipelineCreateRepMsg msg;
+            p->PeekHeader(msg);
+
+            //Find the associated block
+
+            bool foundBlock = false;
+            for (uint32_t index = 0; index < m_blockCount; ++index) {
+                if (m_blocks[index].m_blockId == msg.GetBlockId()) {
+                    //Found the block
+                    foundBlock = true;
+                    if (m_blocks[index].m_state != BlockInfo::BLOCK_STATE_PIPELINE_REQUESTED ) {
+                        NS_LOG_ERROR ("ERROR: Invalid state of block");
+                        break;
+                    } else {
+                        m_blocks[index].m_state = BlockInfo::BLOCK_STATE_PIPELINE_ESTABLISHED;
+                        //Return the header
+                        p->AddHeader (header);
+                        NS_LOG_LOGIC ("Forwarding the Pipeline Create Reply to the following Hop ...");
+                        m_blocks[index].m_socketPrev->Send (p);
+                    }
+                }
+            }
+
+            if (!foundBlock) {
+                NS_LOG_ERROR ("ERROR: Could not find block for the connection..");
+            }
+        }
+        break;
+
+        case HdfsClientDataNodeProtocolHeader::HDFS_CLIENT_PACKET_ACK: {
+
+            HdfsClientPacketAckMsg msg;
+            p->PeekHeader(msg);
+            
+            NS_LOG_LOGIC("Recieved HDFS_CLIENT_PACKET_ACK message blockId:PacketId:lastPacket = " << msg.GetBlockId() << ":" << msg.GetPacketId() << ":" << msg.GetLastPacket());
+
+            //Find the associated block
+
+            bool foundBlock = false;
+            for (uint32_t index = 0; index < m_blockCount; ++index) {
+                if (m_blocks[index].m_blockId == msg.GetBlockId()) {
+                    //Found the block
+                    foundBlock = true;
+                    if (m_blocks[index].m_state != BlockInfo::BLOCK_STATE_TRANSFER_IN_PROGRESS) {
+                        NS_LOG_ERROR ("ERROR: Invalid state for block info");
+                    } else {
+                        //return the header and send it 
+                        p->AddHeader (header);
+
+                        NS_LOG_LOGIC ("Forwarding the PacketAck to the following hop...");
+                        m_blocks[index].m_socketPrev->Send (p);
+                    }
+                }
+            }
+
+            if (!foundBlock) {
+                NS_LOG_ERROR ("ERROR: Could not find block for the connection..");
+            }
+        }
+        break;
+
+        default:
+            NS_LOG_LOGIC("Recieved UnIdentified Message From a Data Node.... " << header.GetMsgType());
+    }
+}
+
+void HadoopDataNode::SendPacketAck (Ptr<Socket> socket, uint32_t blockId, uint32_t packetId, bool isLastPacket, uint32_t packetSize) {
+    NS_LOG_FUNCTION (this << socket << blockId);
+
+    NS_LOG_LOGIC ("Preparing Packet Ack Message");
+    Ptr<Packet> p = Create<Packet> ();
+
+    HdfsClientPacketAckMsg msg;
+    msg.SetBlockId (blockId);
+    msg.SetPacketId (packetId);
+    msg.SetLastPacket (isLastPacket);
+    msg.SetPacketSize (packetSize);
+    msg.SetResultCode (0);
+    p->AddHeader(msg);
+
+    HdfsClientDataNodeProtocolHeader header;
+    header.SetMsgType(HdfsClientDataNodeProtocolHeader::HDFS_CLIENT_PACKET_ACK);
+    p->AddHeader(header);
+
+    NS_LOG_LOGIC ("Sending Packet Ack Message");
+    socket->Send(p);
+}
+
+void HadoopDataNode::SendPipelineCreateRepMsg (Ptr<Socket> socket, uint32_t blockId) {
+    NS_LOG_FUNCTION (this << socket << blockId);
+
+    NS_LOG_LOGIC ("Preparing HDFS_CLIENT_PIPELINE_CREATE_REP Message");
+    Ptr<Packet> p = Create<Packet> ();
+
+    HdfsClientPipelineCreateRepMsg msg;
+    msg.SetBlockId (blockId);
+    msg.SetResultCode (0);
+    p->AddHeader(msg);
+
+    HdfsClientDataNodeProtocolHeader header;
+    header.SetMsgType(HdfsClientDataNodeProtocolHeader::HDFS_CLIENT_PIPELINE_CREATE_REP);
+    p->AddHeader(header);
+
+    NS_LOG_LOGIC ("Sending HDFS_CLIENT_PIPELINE_CREATE_REP Message");
+    socket->Send(p);
+}
+
+void HadoopDataNode::SendRegisterReqMsg (Ptr<Socket> socket) {
+    NS_LOG_FUNCTION (this << socket);
 
     NS_LOG_LOGIC ("Preparing Data Node registration Message");
-    Ptr<Packet> pkt = Create<Packet> ();
+    Ptr<Packet> p = Create<Packet> ();
 
     RegisterRequestMsg regReq;
     regReq.SetPodNum (m_podNum);
     regReq.SetRackNum (m_rackNum);
     regReq.SetHostNum (m_hostNum);
  
-    NS_LOG_LOGIC ("1"); 
-    Ptr<Node> node = GetNode();
-    NS_LOG_LOGIC ("2"); 
-    Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-    NS_LOG_LOGIC ("3"); 
-    int32_t interface = ipv4->GetInterfaceForDevice(node->GetDevice(0));
-    NS_LOG_LOGIC ("4: Interface = " << interface); 
-    Ipv4Address address = ipv4->GetAddress(interface,0).GetLocal();
-    NS_LOG_LOGIC ("5"); 
-    NS_LOG_LOGIC ("### Data Node IP Address is " << address.Get());
-    regReq.SetIpAddress (address);
-
-    pkt->AddHeader(regReq);
+    NS_LOG_LOGIC ("### Data Node IP Address is " << m_ownIpAddress.Get());
+    regReq.SetIpAddress (m_ownIpAddress);
+    
+    p->AddHeader(regReq);
 
     NameNodeDataNodeProtocolHeader header;
     header.SetMsgType(NameNodeDataNodeProtocolHeader::DATA_NODE_REGISTER_REQ);
-    pkt->AddHeader(header);
+    p->AddHeader(header);
 
     NS_LOG_LOGIC ("Sending Data Node registration Message");
-    socket->Send(pkt);
+    socket->Send(p);
 }
 
-void HadoopDataNode::NameNodeConnectionFailed (Ptr<Socket> socket) {
-    NS_LOG_FUNCTION (this << socket);
+
+void HadoopDataNode::HandleDataPacket (Ptr<Packet> p, BlockInfo& block) {
+    NS_LOG_FUNCTION (this << p->GetSize() << block.m_blockId);
+
+    block.m_bytesRcvdInPacket += p->GetSize();
+    if (block.m_socketNext) {
+        block.m_socketNext->Send (p);
+    } else if (block.m_bytesRcvdInPacket == block.m_currentPacketSize) {
+        SendPacketComplete (block.m_socketPrev, block.m_blockId, block.m_currentPacketId, block.m_lastPacket, block.m_currentPacketSize);
+
+        block.m_currentPacketSize = 0;
+        block.m_lastPacket = 0; 
+        block.m_rawTraffic = 0;
+        block.m_bytesRcvdInPacket = 0;
+        block.m_currentPacketId = 0;
+    }
 }
 
+void HadoopDataNode::SendPacketComplete (Ptr<Socket> socket, uint32_t blockId, uint32_t packetId, bool lastPacket, uint32_t packetSize) {
+    NS_LOG_FUNCTION (this << socket << blockId <<packetId << lastPacket << packetSize);
+
+    NS_LOG_LOGIC ("Preparing HDFS_CLIENT_PACKET_COMPLETE  Message");
+    Ptr<Packet> p = Create<Packet> ();
+
+    HdfsClientPacketCompleteMsg msg;
+    msg.SetResultCode (0);
+    msg.SetBlockId (blockId);
+    msg.SetPacketId (packetId);
+    msg.SetLastPacket (lastPacket);
+    msg.SetPacketSize (packetSize);
+ 
+    p->AddHeader(msg);
+
+    HdfsClientDataNodeProtocolHeader header;
+    header.SetMsgType(HdfsClientDataNodeProtocolHeader::HDFS_CLIENT_PACKET_COMPLETE);
+    p->AddHeader(header);
+
+    NS_LOG_LOGIC ("Sending HDFS_CLIENT_PACKET_COMPLETE Message");
+    socket->Send(p);
+}
 };
 
 
-#if 0
-
-TypeId
-OnOffApplication::GetTypeId (void)
-{
-  static TypeId tid = TypeId ("ns3::OnOffApplication")
-    .SetParent<Application> ()
-    .AddConstructor<OnOffApplication> ()
-    .AddAttribute ("DataRate", "The data rate in on state.",
-                   DataRateValue (DataRate ("500kb/s")),
-                   MakeDataRateAccessor (&OnOffApplication::m_cbrRate),
-                   MakeDataRateChecker ())
-    .AddAttribute ("PacketSize", "The size of packets sent in on state",
-                   UintegerValue (512),
-                   MakeUintegerAccessor (&OnOffApplication::m_pktSize),
-                   MakeUintegerChecker<uint32_t> (1))
-    .AddAttribute ("Remote", "The address of the destination",
-                   AddressValue (),
-                   MakeAddressAccessor (&OnOffApplication::m_peer),
-                   MakeAddressChecker ())
-    .AddAttribute ("OnTime", "A RandomVariableStream used to pick the duration of the 'On' state.",
-                   StringValue ("ns3::ConstantRandomVariable[Constant=1.0]"),
-                   MakePointerAccessor (&OnOffApplication::m_onTime),
-                   MakePointerChecker <RandomVariableStream>())
-    .AddAttribute ("OffTime", "A RandomVariableStream used to pick the duration of the 'Off' state.",
-                   StringValue ("ns3::ConstantRandomVariable[Constant=1.0]"),
-                   MakePointerAccessor (&OnOffApplication::m_offTime),
-                   MakePointerChecker <RandomVariableStream>())
-    .AddAttribute ("MaxBytes", 
-                   "The total number of bytes to send. Once these bytes are sent, "
-                   "no packet is sent again, even in on state. The value zero means "
-                   "that there is no limit.",
-                   UintegerValue (0),
-                   MakeUintegerAccessor (&OnOffApplication::m_maxBytes),
-                   MakeUintegerChecker<uint32_t> ())
-    .AddAttribute ("Protocol", "The type of protocol to use.",
-                   TypeIdValue (UdpSocketFactory::GetTypeId ()),
-                   MakeTypeIdAccessor (&OnOffApplication::m_tid),
-                   MakeTypeIdChecker ())
-    .AddTraceSource ("Tx", "A new packet is created and is sent",
-                     MakeTraceSourceAccessor (&OnOffApplication::m_txTrace))
-  ;
-  return tid;
-}
-
-
-OnOffApplication::OnOffApplication ()
-  : m_socket (0),
-    m_connected (false),
-    m_residualBits (0),
-    m_lastStartTime (Seconds (0)),
-    m_totBytes (0)
-{
-  NS_LOG_FUNCTION (this);
-}
-
-OnOffApplication::~OnOffApplication()
-{
-  NS_LOG_FUNCTION (this);
-}
-
-void 
-OnOffApplication::SetMaxBytes (uint32_t maxBytes)
-{
-  NS_LOG_FUNCTION (this << maxBytes);
-  m_maxBytes = maxBytes;
-}
-
-Ptr<Socket>
-OnOffApplication::GetSocket (void) const
-{
-  NS_LOG_FUNCTION (this);
-  return m_socket;
-}
-
-int64_t 
-OnOffApplication::AssignStreams (int64_t stream)
-{
-  NS_LOG_FUNCTION (this << stream);
-  m_onTime->SetStream (stream);
-  m_offTime->SetStream (stream + 1);
-  return 2;
-}
-
-void
-OnOffApplication::DoDispose (void)
-{
-  NS_LOG_FUNCTION (this);
-
-  m_socket = 0;
-  // chain up
-  Application::DoDispose ();
-}
-
-// Application Methods
-void OnOffApplication::StartApplication () // Called at time specified by Start
-{
-  NS_LOG_FUNCTION (this);
-
-  // Create the socket if not already
-  if (!m_socket)
-    {
-      m_socket = Socket::CreateSocket (GetNode (), m_tid);
-      if (Inet6SocketAddress::IsMatchingType (m_peer))
-        {
-          m_socket->Bind6 ();
-        }
-      else if (InetSocketAddress::IsMatchingType (m_peer) ||
-               PacketSocketAddress::IsMatchingType (m_peer))
-        {
-          m_socket->Bind ();
-        }
-      m_socket->Connect (m_peer);
-      m_socket->SetAllowBroadcast (true);
-      m_socket->ShutdownRecv ();
-
-      m_socket->SetConnectCallback (
-        MakeCallback (&OnOffApplication::ConnectionSucceeded, this),
-        MakeCallback (&OnOffApplication::ConnectionFailed, this));
-    }
-  // Insure no pending event
-  CancelEvents ();
-  // If we are not yet connected, there is nothing to do here
-  // The ConnectionComplete upcall will start timers at that time
-  //if (!m_connected) return;
-  ScheduleStartEvent ();
-}
-
-void OnOffApplication::StopApplication () // Called at time specified by Stop
-{
-  NS_LOG_FUNCTION (this);
-
-  CancelEvents ();
-  if(m_socket != 0)
-    {
-      m_socket->Close ();
-    }
-  else
-    {
-      NS_LOG_WARN ("OnOffApplication found null socket to close in StopApplication");
-    }
-}
-
-void OnOffApplication::CancelEvents ()
-{
-  NS_LOG_FUNCTION (this);
-
-  if (m_sendEvent.IsRunning ())
-    { // Cancel the pending send packet event
-      // Calculate residual bits since last packet sent
-      Time delta (Simulator::Now () - m_lastStartTime);
-      int64x64_t bits = delta.To (Time::S) * m_cbrRate.GetBitRate ();
-      m_residualBits += bits.GetHigh ();
-    }
-  Simulator::Cancel (m_sendEvent);
-  Simulator::Cancel (m_startStopEvent);
-}
-
-// Event handlers
-void OnOffApplication::StartSending ()
-{
-  NS_LOG_FUNCTION (this);
-  m_lastStartTime = Simulator::Now ();
-  ScheduleNextTx ();  // Schedule the send packet event
-  ScheduleStopEvent ();
-}
-
-void OnOffApplication::StopSending ()
-{
-  NS_LOG_FUNCTION (this);
-  CancelEvents ();
-
-  ScheduleStartEvent ();
-}
-
-// Private helpers
-void OnOffApplication::ScheduleNextTx ()
-{
-  NS_LOG_FUNCTION (this);
-
-  if (m_maxBytes == 0 || m_totBytes < m_maxBytes)
-    {
-      uint32_t bits = m_pktSize * 8 - m_residualBits;
-      NS_LOG_LOGIC ("bits = " << bits);
-      Time nextTime (Seconds (bits /
-                              static_cast<double>(m_cbrRate.GetBitRate ()))); // Time till next packet
-      NS_LOG_LOGIC ("nextTime = " << nextTime);
-      m_sendEvent = Simulator::Schedule (nextTime,
-                                         &OnOffApplication::SendPacket, this);
-    }
-  else
-    { // All done, cancel any pending events
-      StopApplication ();
-    }
-}
-
-void OnOffApplication::ScheduleStartEvent ()
-{  // Schedules the event to start sending data (switch to the "On" state)
-  NS_LOG_FUNCTION (this);
-
-  Time offInterval = Seconds (m_offTime->GetValue ());
-  NS_LOG_LOGIC ("start at " << offInterval);
-  m_startStopEvent = Simulator::Schedule (offInterval, &OnOffApplication::StartSending, this);
-}
-
-void OnOffApplication::ScheduleStopEvent ()
-{  // Schedules the event to stop sending data (switch to "Off" state)
-  NS_LOG_FUNCTION (this);
-
-  Time onInterval = Seconds (m_onTime->GetValue ());
-  NS_LOG_LOGIC ("stop at " << onInterval);
-  m_startStopEvent = Simulator::Schedule (onInterval, &OnOffApplication::StopSending, this);
-}
-
-
-void OnOffApplication::SendPacket ()
-{
-  NS_LOG_FUNCTION (this);
-
-  NS_ASSERT (m_sendEvent.IsExpired ());
-  Ptr<Packet> packet = Create<Packet> (m_pktSize);
-  m_txTrace (packet);
-  m_socket->Send (packet);
-  m_totBytes += m_pktSize;
-  if (InetSocketAddress::IsMatchingType (m_peer))
-    {
-      NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds ()
-                   << "s on-off application sent "
-                   <<  packet->GetSize () << " bytes to "
-                   << InetSocketAddress::ConvertFrom(m_peer).GetIpv4 ()
-                   << " port " << InetSocketAddress::ConvertFrom (m_peer).GetPort ()
-                   << " total Tx " << m_totBytes << " bytes");
-    }
-  else if (Inet6SocketAddress::IsMatchingType (m_peer))
-    {
-      NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds ()
-                   << "s on-off application sent "
-                   <<  packet->GetSize () << " bytes to "
-                   << Inet6SocketAddress::ConvertFrom(m_peer).GetIpv6 ()
-                   << " port " << Inet6SocketAddress::ConvertFrom (m_peer).GetPort ()
-                   << " total Tx " << m_totBytes << " bytes");
-    }
-  m_lastStartTime = Simulator::Now ();
-  m_residualBits = 0;
-  ScheduleNextTx ();
-}
-
-
-void OnOffApplication::ConnectionSucceeded (Ptr<Socket> socket)
-{
-  NS_LOG_FUNCTION (this << socket);
-  m_connected = true;
-}
-
-void OnOffApplication::ConnectionFailed (Ptr<Socket> socket)
-{
-  NS_LOG_FUNCTION (this << socket);
-}
-
-
-#endif
