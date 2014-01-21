@@ -127,7 +127,6 @@ private:
     void pipelineConnectionSucceeded (Ptr<Socket> socket);
     void pipelineConnectionFailed (Ptr<Socket> socket);
     void RecvFromPipelineNext (Ptr<Socket> socket); 
-    void HandlePipelinePrevReception (Ptr<Socket> socket, Ptr<Packet> p);
 
 
     void SendRegisterReqMsg (Ptr<Socket> socket);

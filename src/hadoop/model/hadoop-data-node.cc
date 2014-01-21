@@ -188,27 +188,15 @@ void HadoopDataNode::NewPipelineConnectionCreated (Ptr<Socket> socket, const Add
 void HadoopDataNode::RecvFromPipelinePrev (Ptr<Socket> socket) {
     NS_LOG_FUNCTION (this << socket);
         
-    Ptr<Packet> p;
-    do {
-        p = socket->Recv();
-        if (p) {
-            while (p->GetSize() > 0) {
-                NS_LOG_LOGIC ("Received Packet of Size = " <<  p->GetSize());
-                HandlePipelinePrevReception (socket, p);
-            }
-        }
-    } while (p);
-}
-
-
-void HadoopDataNode::HandlePipelinePrevReception (Ptr<Socket> socket, Ptr<Packet> p) {
-    NS_LOG_FUNCTION (this << socket << p);
+    Ptr<Packet> p = socket->Recv();
+    NS_LOG_LOGIC (socket << " :Received Packet of Size = " <<  p->GetSize());
 
     //Try to find the Block through the socket
     //bool blockFound = false;
     for (uint32_t index = 0; index < m_blockCount; ++index) {
         if (m_blocks[index].m_socketPrev == socket) {
             //blockFound = true;
+            NS_LOG_LOGIC ("Socket Matching block # " << index << " Raw Traffic = " << m_blocks[index].m_rawTraffic);
             if (m_blocks[index].m_rawTraffic) {
                 HandleDataPacket (p, m_blocks[index]);
                 return;
@@ -293,18 +281,22 @@ void HadoopDataNode::HandlePipelinePrevReception (Ptr<Socket> socket, Ptr<Packet
                         }
                         //Fall Through
                         case BlockInfo::BLOCK_STATE_TRANSFER_IN_PROGRESS: {
+
+                                m_blocks[index].m_currentPacketSize = msg.GetPacketSize();
+                                m_blocks[index].m_lastPacket = msg.GetLastPacket ();
+                                m_blocks[index].m_currentPacketId = msg.GetPacketId ();
+                                m_blocks[index].m_bytesRcvdInPacket = 0;
+
                             if (m_blocks[index].m_socketNext) {
                                 //return the header and send it 
                                 NS_LOG_LOGIC ("Forwarding to the Next hop...");
                                 Ptr<Packet> forwardPkt = Create<Packet> ();
                                 forwardPkt->AddHeader (msg);
                                 forwardPkt->AddHeader (header);
-                                m_blocks[index].m_socketNext->Send (forwardPkt);
+                                uint32_t bytesSent = m_blocks[index].m_socketNext->Send (forwardPkt);
+                                NS_LOG_LOGIC ("Forwarding " << bytesSent << " Bytes to the next Data Node");
                             } else {
                                 SendPacketAck (m_blocks[index].m_socketPrev, m_blocks[index].m_blockId, msg.GetPacketId(), msg.GetLastPacket(), msg.GetPacketSize());
-                                m_blocks[index].m_currentPacketSize = msg.GetPacketSize();
-                                m_blocks[index].m_lastPacket = msg.GetLastPacket ();
-                                m_blocks[index].m_currentPacketId = msg.GetPacketId ();
                                 m_blocks[index].m_rawTraffic = true;
                             }
                         }
@@ -443,6 +435,54 @@ void HadoopDataNode::RecvFromPipelineNext (Ptr<Socket> socket) {
 
                         NS_LOG_LOGIC ("Forwarding the PacketAck to the following hop...");
                         m_blocks[index].m_socketPrev->Send (p);
+
+                        m_blocks[index].m_rawTraffic = true;
+                    }
+                }
+            }
+
+            if (!foundBlock) {
+                NS_LOG_ERROR ("ERROR: Could not find block for the connection..");
+            }
+        }
+        break;
+
+        case HdfsClientDataNodeProtocolHeader::HDFS_CLIENT_PACKET_COMPLETE: {
+
+            HdfsClientPacketCompleteMsg msg;
+            p->PeekHeader(msg);
+            
+            NS_LOG_LOGIC("Recieved HDFS_CLIENT_PACKET_COMPLETE message blockId:PacketId:lastPacket = " << msg.GetBlockId() << ":" << msg.GetPacketId() << ":" << msg.GetLastPacket());
+
+            //Find the associated block
+
+            bool foundBlock = false;
+            for (uint32_t index = 0; index < m_blockCount; ++index) {
+                if (m_blocks[index].m_blockId == msg.GetBlockId()) {
+                    //Found the block
+                    foundBlock = true;
+                    if (m_blocks[index].m_state != BlockInfo::BLOCK_STATE_TRANSFER_IN_PROGRESS) {
+                        NS_LOG_ERROR ("ERROR: Invalid state for block info");
+                    } else {
+                        //return the header and send it 
+                        p->AddHeader (header);
+
+                        NS_LOG_LOGIC ("Forwarding the HDFS_CLIENT_PACKET_COMPLETE to the following hop...");
+                        m_blocks[index].m_socketPrev->Send (p);
+
+                        m_blocks[index].m_currentPacketSize = 0;
+                        m_blocks[index].m_lastPacket = 0; 
+                        m_blocks[index].m_rawTraffic = 0;
+                        m_blocks[index].m_bytesRcvdInPacket = 0;
+                        m_blocks[index].m_currentPacketId = 0;
+
+                        if (m_blocks[index].m_lastPacket) {
+                            m_blocks[index].m_state = BlockInfo::BLOCK_STATE_TRANSFER_COMPLETED;
+
+                            //Close the socket
+                            socket->Close ();
+                            m_blocks[index].m_socketNext = NULL;
+                        }
                     }
                 }
             }
@@ -538,6 +578,11 @@ void HadoopDataNode::HandleDataPacket (Ptr<Packet> p, BlockInfo& block) {
         block.m_rawTraffic = 0;
         block.m_bytesRcvdInPacket = 0;
         block.m_currentPacketId = 0;
+
+        if (block.m_lastPacket) {
+            block.m_state = BlockInfo::BLOCK_STATE_TRANSFER_COMPLETED;
+            
+        }
     }
 }
 

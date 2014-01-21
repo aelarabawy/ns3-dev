@@ -276,6 +276,28 @@ Ptr<Socket> HadoopHdfsClient::ConnectToDataNode (Ipv4Address dataNodeAddress) {
     return socket;
 }
 
+#if 0
+BlockInfo* HadoopHdfsClient::FindBlockById (uint32_t blockId) {
+    NS_LOG_FUNCTION (this << blockId);
+
+    bool blockFound = false;
+    BlockInfo * block = NULL;
+
+    for (uint32_t index = 0; index < m_blockCount; ++index) {
+        if (m_blocks[index].m_blockId == blockId) {
+            blockFound = true;
+            block = &m_blocks[index];
+            break;
+        }
+    }
+
+    if (!blockFound) {
+        NS_LOG_ERROR ("ERROR: Could not find a block with Id = " << blockId);
+    }
+
+    return block;
+}
+#endif
 
 void HadoopHdfsClient::PipelineConnectionSucceeded (Ptr<Socket> socket) {
     NS_LOG_FUNCTION (this << socket);

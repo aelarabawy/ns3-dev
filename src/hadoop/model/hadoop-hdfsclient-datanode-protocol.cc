@@ -442,7 +442,7 @@ namespace ns3 {
 
         NS_LOG_LOGIC (" Block Id = " << m_blockId << " Packet Id = " << m_packetId << " SegmentId = " << m_segmentId << " PacketSize = " << m_packetSize);
         NS_LOG_LOGIC ("Cont.... lastSegmentInPacket = " << m_lastSegmentInPacket << "lastPacketInBlock = " << m_lastPacketInBlock);
-        return 20;
+        return 24;
     }
 
     void HdfsClientPacketMsg::Print (std::ostream &os) const {

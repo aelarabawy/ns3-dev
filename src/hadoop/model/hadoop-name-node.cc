@@ -227,33 +227,35 @@ void HadoopNameNode::RecvFromHdfsClient (Ptr<Socket> socket) {
 
             //Send Reply Message
             Ptr<Packet> repPkt = Create<Packet> ();
-            NS_LOG_LOGIC("1"); 
             HdfsClientFileBlockAddRepMsg repMsg;
             repMsg.SetResultCode(0); //zero for success
             repMsg.SetFileId (reqMsg.GetFileId());
             repMsg.SetBlockId (1);
             repMsg.SetBlockSize (64000);
-            NS_LOG_LOGIC("2"); 
             repMsg.SetPipelineLen (3);
             repMsg.SetPipeline (m_dataNodeAddresses[0] , 0);
             repMsg.SetPipeline (m_dataNodeAddresses[1] , 1);
             repMsg.SetPipeline (m_dataNodeAddresses[2] , 2);
 
-            NS_LOG_LOGIC("3"); 
             repPkt->AddHeader (repMsg);
 
-            NS_LOG_LOGIC("4"); 
             NameNodeHdfsClientProtocolHeader repHeader;
             repHeader.SetMsgType (NameNodeHdfsClientProtocolHeader::HDFS_CLIENT_FILE_BLOCK_ADD_REP);
-            NS_LOG_LOGIC("5"); 
             repPkt->AddHeader (repHeader);
 
-            NS_LOG_LOGIC("6"); 
             socket->Send(repPkt);
-            
-            NS_LOG_LOGIC("7"); 
         }
         break;
+
+        case NameNodeHdfsClientProtocolHeader::HDFS_CLIENT_BLOCK_COMPLETE: {
+            NS_LOG_LOGIC("Recieved HDFS_CLIENT_BLOCK_COMPLETE  message from an HDFS Client");
+
+            HdfsClientBlockCompleteMsg msg;
+            p->RemoveHeader (msg);
+            NS_LOG_LOGIC ("BLOCK # " << msg.GetBlockId() << " Has completed its transfer");
+        }
+        break;
+
 
         default:
             NS_LOG_LOGIC("Recieved UnIdentified Message From an HDFS Client.... " << header.GetMsgType());
